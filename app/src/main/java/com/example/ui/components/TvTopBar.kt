@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -46,18 +47,25 @@ fun TvTopBar(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "TABLO MULTIVIEW",
-                color = TvCyanPrimary,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Black,
-                letterSpacing = 2.sp
+                text = "TABLO",
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp
+            )
+            Text(
+                text = " MULTIVIEW",
+                color = Color(0xFF8E8E93),
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 1.sp
             )
             if (title.isNotBlank()) {
                 Text(
                     text = "  /  $title",
-                    color = TvTextSecondary,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium
+                    color = Color(0xFF636366),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Normal
                 )
             }
         }
@@ -67,35 +75,35 @@ fun TvTopBar(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .clip(RoundedCornerShape(20.dp))
-                .background(TvSurfaceVariant.copy(alpha = 0.7f))
-                .padding(horizontal = 14.dp, vertical = 6.dp)
+                .background(Color(0xFF161618))
+                .padding(horizontal = 12.dp, vertical = 5.dp)
         ) {
             val (statusColor, statusText) = when (connectionState) {
                 TabloConnectionState.CONNECTED -> Pair(TvSuccess, device?.name ?: "Connected")
                 TabloConnectionState.CONNECTING -> Pair(TvWarning, "Connecting...")
-                TabloConnectionState.DISCOVERING -> Pair(TvCyanPrimary, "Discovering...")
+                TabloConnectionState.DISCOVERING -> Pair(Color.White, "Discovering...")
                 TabloConnectionState.ERROR -> Pair(TvError, "Disconnected")
                 TabloConnectionState.DISCONNECTED -> Pair(TvTextSecondary, "Not Connected")
             }
 
             Box(
                 modifier = Modifier
-                    .size(8.dp)
+                    .size(7.dp)
                     .clip(CircleShape)
                     .background(statusColor)
             )
 
             Text(
                 text = "  $statusText",
-                color = TvTextPrimary,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium
             )
 
             if (device != null && connectionState == TabloConnectionState.CONNECTED) {
                 Text(
                     text = " (${device.host})",
-                    color = TvTextSecondary,
+                    color = Color(0xFF8E8E93),
                     fontSize = 12.sp
                 )
             }

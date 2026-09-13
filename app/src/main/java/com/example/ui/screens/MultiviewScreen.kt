@@ -66,6 +66,7 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -81,6 +82,7 @@ import com.example.ui.components.TvFocusableCard
 import com.example.ui.theme.TvAmberAccent
 import com.example.ui.theme.TvBackground
 import com.example.ui.theme.TvBorderFocused
+import com.example.ui.theme.TvBorderGrey
 import com.example.ui.theme.TvBorderNormal
 import com.example.ui.theme.TvCyanPrimary
 import com.example.ui.theme.TvError
@@ -336,7 +338,8 @@ fun MultiviewVideoPane(
     viewModel: TabloAppViewModel,
     modifier: Modifier = Modifier
 ) {
-    val borderColor = if (isActive) TvBorderFocused else TvBorderNormal
+    // Grey border signifies which pane has audio & focus; no audio/mute buttons per user direction
+    val borderColor = if (isActive) TvBorderGrey else Color(0xFF1C1C1E)
     val borderWidth = if (isActive) 3.dp else 1.dp
 
     Box(
@@ -381,74 +384,45 @@ fun MultiviewVideoPane(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Top Gradient Shadow & Channel Banner Overlay
+        // Minimalist Channel Header Overlay (Unobtrusive & Clean)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            Color.Black.copy(alpha = 0.85f),
+                            Color.Black.copy(alpha = 0.75f),
                             Color.Transparent
                         )
                     )
                 )
                 .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Channel & Program Info
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = paneState.channel?.channelNumberFormatted ?: "PANE ${paneState.paneIndex + 1}",
-                            color = if (isActive) TvCyanPrimary else TvAmberAccent,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Black
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = paneState.channel?.network?.ifBlank { paneState.channel?.callSign } ?: "Select Channel",
-                            color = TvTextPrimary,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    val showTitle = paneState.airing?.title ?: paneState.channel?.displaySubtitle
-                    if (!showTitle.isNullOrBlank()) {
-                        Text(
-                            text = showTitle,
-                            color = TvTextSecondary,
-                            fontSize = 11.sp,
-                            maxLines = 1
-                        )
-                    }
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = paneState.channel?.channelNumberFormatted ?: "PANE ${paneState.paneIndex + 1}",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = paneState.channel?.network?.ifBlank { paneState.channel?.callSign } ?: "Select Channel",
+                        color = Color(0xFFE5E5EA),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
 
-                // Audio Status Pill
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(if (isActive) TvCyanPrimary else Color.Black.copy(alpha = 0.6f))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Icon(
-                        imageVector = if (isActive) Icons.Default.VolumeUp else Icons.Default.VolumeMute,
-                        contentDescription = if (isActive) "Audio Active" else "Muted",
-                        tint = if (isActive) TvBackground else TvTextSecondary,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
+                val showTitle = paneState.airing?.title ?: paneState.channel?.displaySubtitle
+                if (!showTitle.isNullOrBlank()) {
                     Text(
-                        text = if (isActive) "AUDIO" else "MUTE",
-                        color = if (isActive) TvBackground else TvTextSecondary,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold
+                        text = showTitle,
+                        color = TvTextSecondary,
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -541,11 +515,11 @@ fun MultiviewActionMenu(
         contentAlignment = Alignment.Center
     ) {
         Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = TvSurface,
-            border = BorderStroke(2.dp, TvCyanPrimary),
+            shape = RoundedCornerShape(14.dp),
+            color = Color(0xFF141416),
+            border = BorderStroke(1.dp, Color(0xFF38383A)),
             modifier = Modifier
-                .width(560.dp)
+                .width(540.dp)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
@@ -560,10 +534,10 @@ fun MultiviewActionMenu(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "PANE ${state.activePaneIndex + 1} CONTROLS",
-                            color = TvCyanPrimary,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = 1.sp
+                            color = Color.White,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
                         )
                         val channel = state.panes[state.activePaneIndex].channel
                         Text(
@@ -593,7 +567,7 @@ fun MultiviewActionMenu(
                         onClick = { viewModel.openChannelPicker() },
                         style = TvButtonStyle.PRIMARY,
                         modifier = Modifier.weight(1f),
-                        leadingIcon = { Icon(Icons.Default.Tune, contentDescription = null, tint = TvBackground) }
+                        leadingIcon = { Icon(Icons.Default.Tune, contentDescription = null, tint = Color.Black) }
                     )
 
                     TvButton(
@@ -605,7 +579,7 @@ fun MultiviewActionMenu(
                             Icon(
                                 if (state.isFullScreenSingle) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
                                 contentDescription = null,
-                                tint = TvCyanPrimary
+                                tint = Color.White
                             )
                         }
                     )
@@ -619,7 +593,7 @@ fun MultiviewActionMenu(
                     color = TvTextSecondary,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
+                    letterSpacing = 0.5.sp
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -632,7 +606,7 @@ fun MultiviewActionMenu(
                         TvButton(
                             text = "${mode.paneCount}P",
                             onClick = { viewModel.changeLayoutMode(mode) },
-                            style = if (isSelected) TvButtonStyle.AMBER else TvButtonStyle.OUTLINE,
+                            style = if (isSelected) TvButtonStyle.PRIMARY else TvButtonStyle.OUTLINE,
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -649,7 +623,7 @@ fun MultiviewActionMenu(
                         onClick = { viewModel.openSaveLayoutDialog() },
                         style = TvButtonStyle.SECONDARY,
                         modifier = Modifier.weight(1f),
-                        leadingIcon = { Icon(Icons.Default.Bookmark, contentDescription = null, tint = TvAmberAccent) }
+                        leadingIcon = { Icon(Icons.Default.Bookmark, contentDescription = null, tint = Color.White) }
                     )
 
                     TvButton(
@@ -657,7 +631,7 @@ fun MultiviewActionMenu(
                         onClick = { viewModel.navigateTo(AppScreen.CHANNEL_GUIDE) },
                         style = TvButtonStyle.SECONDARY,
                         modifier = Modifier.weight(1f),
-                        leadingIcon = { Icon(Icons.Default.List, contentDescription = null, tint = TvCyanPrimary) }
+                        leadingIcon = { Icon(Icons.Default.List, contentDescription = null, tint = Color.White) }
                     )
                 }
 
@@ -692,9 +666,9 @@ fun QuickChannelPickerModal(
         contentAlignment = Alignment.Center
     ) {
         Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = TvSurface,
-            border = BorderStroke(2.dp, TvCyanPrimary),
+            shape = RoundedCornerShape(14.dp),
+            color = Color(0xFF141416),
+            border = BorderStroke(1.dp, Color(0xFF38383A)),
             modifier = Modifier
                 .width(480.dp)
                 .height(440.dp)
@@ -711,10 +685,10 @@ fun QuickChannelPickerModal(
                 ) {
                     Text(
                         text = "SELECT CHANNEL",
-                        color = TvCyanPrimary,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 1.sp
+                        color = Color.White,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
                     )
                     TvButton(
                         text = "Cancel",
@@ -740,8 +714,10 @@ fun QuickChannelPickerModal(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(60.dp),
-                                focusedContainerColor = TvSurfaceElevated,
-                                unfocusedContainerColor = if (isSelected) TvCyanPrimary.copy(alpha = 0.15f) else TvSurfaceVariant,
+                                focusedContainerColor = Color(0xFF26262A),
+                                unfocusedContainerColor = if (isSelected) Color(0xFF202024) else Color(0xFF161618),
+                                focusedBorderColor = Color.White,
+                                unfocusedBorderColor = if (isSelected) Color(0xFF8E8E93) else Color(0xFF262628),
                                 testTag = "quick_ch_${ch.id}"
                             ) { isFocused ->
                                 Row(
@@ -754,17 +730,17 @@ fun QuickChannelPickerModal(
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
                                             text = ch.channelNumberFormatted,
-                                            color = if (isFocused) TvCyanPrimary else TvAmberAccent,
-                                            fontSize = 17.sp,
+                                            color = if (isFocused) Color.White else Color(0xFFD1D1D6),
+                                            fontSize = 16.sp,
                                             fontWeight = FontWeight.Bold
                                         )
                                         Spacer(modifier = Modifier.width(16.dp))
                                         Column {
                                             Text(
                                                 text = ch.network.ifBlank { ch.callSign },
-                                                color = TvTextPrimary,
+                                                color = Color.White,
                                                 fontSize = 14.sp,
-                                                fontWeight = FontWeight.SemiBold
+                                                fontWeight = FontWeight.Medium
                                             )
                                             if (ch.callSign.isNotBlank() && ch.callSign != ch.network) {
                                                 Text(
@@ -811,9 +787,9 @@ fun SaveLayoutDialog(
         contentAlignment = Alignment.Center
     ) {
         Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = TvSurface,
-            border = BorderStroke(2.dp, TvAmberAccent),
+            shape = RoundedCornerShape(14.dp),
+            color = Color(0xFF141416),
+            border = BorderStroke(1.dp, Color(0xFF38383A)),
             modifier = Modifier
                 .width(460.dp)
                 .clickable(
@@ -824,10 +800,10 @@ fun SaveLayoutDialog(
             Column(modifier = Modifier.padding(24.dp)) {
                 Text(
                     text = "SAVE MULTIVIEW PRESET",
-                    color = TvAmberAccent,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 1.sp
+                    color = Color.White,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.5.sp
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
@@ -843,15 +819,15 @@ fun SaveLayoutDialog(
                         .fillMaxWidth()
                         .height(50.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(TvSurfaceElevated)
+                        .background(Color(0xFF222226))
                         .padding(horizontal = 16.dp),
                     contentAlignment = Alignment.CenterStart
                 ) {
                     Text(
                         text = presetName,
-                        color = TvTextPrimary,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium
                     )
                 }
 
@@ -874,7 +850,7 @@ fun SaveLayoutDialog(
                         TvButton(
                             text = suggestion,
                             onClick = { presetName = suggestion },
-                            style = if (presetName == suggestion) TvButtonStyle.AMBER else TvButtonStyle.OUTLINE,
+                            style = if (presetName == suggestion) TvButtonStyle.PRIMARY else TvButtonStyle.OUTLINE,
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -889,7 +865,7 @@ fun SaveLayoutDialog(
                     TvButton(
                         text = "Save Preset",
                         onClick = { onSave(presetName) },
-                        style = TvButtonStyle.AMBER,
+                        style = TvButtonStyle.PRIMARY,
                         modifier = Modifier.weight(1f)
                     )
                     TvButton(

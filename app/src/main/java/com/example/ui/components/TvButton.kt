@@ -65,20 +65,20 @@ fun TvButton(
 
     val (bgColor, textColor, borderColor) = when (style) {
         TvButtonStyle.PRIMARY -> {
-            if (isFocused) Triple(TvCyanPrimary, TvBackground, TvCyanPrimary)
-            else Triple(TvCyanPrimary.copy(alpha = 0.88f), TvBackground, Color.Transparent)
+            if (isFocused) Triple(Color.White, Color.Black, Color.White)
+            else Triple(Color(0xFFE5E5EA), Color.Black, Color.Transparent)
         }
         TvButtonStyle.AMBER -> {
-            if (isFocused) Triple(TvAmberAccent, TvBackground, TvAmberAccent)
-            else Triple(TvAmberAccent.copy(alpha = 0.88f), TvBackground, Color.Transparent)
+            if (isFocused) Triple(Color(0xFFE5E5EA), Color.Black, Color.White)
+            else Triple(Color(0xFF242426), Color.White, Color(0xFF3A3A3C))
         }
         TvButtonStyle.SECONDARY -> {
-            if (isFocused) Triple(TvSurfaceElevated, TvCyanPrimary, TvCyanPrimary)
-            else Triple(TvSurfaceElevated.copy(alpha = 0.7f), TvTextPrimary, Color.Transparent)
+            if (isFocused) Triple(Color(0xFF2C2C2E), Color.White, Color.White)
+            else Triple(Color(0xFF18181A), Color(0xFFE5E5EA), Color(0xFF2C2C2E))
         }
         TvButtonStyle.OUTLINE -> {
-            if (isFocused) Triple(TvCyanPrimary.copy(alpha = 0.25f), TvCyanPrimary, TvCyanPrimary)
-            else Triple(Color.Transparent, TvTextPrimary, TvTextPrimary.copy(alpha = 0.35f))
+            if (isFocused) Triple(Color(0xFF26262A), Color.White, Color.White)
+            else Triple(Color.Transparent, Color(0xFFD1D1D6), Color(0xFF38383A))
         }
     }
 

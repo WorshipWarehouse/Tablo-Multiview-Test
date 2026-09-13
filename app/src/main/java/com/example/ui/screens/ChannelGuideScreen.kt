@@ -30,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -81,7 +82,7 @@ fun ChannelGuideScreen(
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
-                            tint = TvCyanPrimary
+                            tint = Color.White
                         )
                     },
                     testTag = "btn_guide_back"
@@ -90,15 +91,15 @@ fun ChannelGuideScreen(
                 Column {
                     Text(
                         text = "LIVE CHANNEL GUIDE",
-                        color = TvTextPrimary,
-                        fontSize = 20.sp,
+                        color = Color.White,
+                        fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp
+                        letterSpacing = 0.5.sp
                     )
                     Text(
                         text = "${channels.size} broadcast channels from ${device?.name ?: "Tablo"}",
                         color = TvTextSecondary,
-                        fontSize = 13.sp
+                        fontSize = 12.sp
                     )
                 }
             }
@@ -107,17 +108,17 @@ fun ChannelGuideScreen(
                 TvButton(
                     text = if (isLoading) "Refreshing..." else "Refresh Guide",
                     onClick = { viewModel.refreshGuideChannels() },
-                    style = TvButtonStyle.SECONDARY,
+                    style = TvButtonStyle.OUTLINE,
                     enabled = !isLoading,
                     leadingIcon = {
                         if (isLoading) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(16.dp),
-                                color = TvCyanPrimary,
+                                color = Color.White,
                                 strokeWidth = 2.dp
                             )
                         } else {
-                            Icon(Icons.Default.Refresh, contentDescription = null, tint = TvCyanPrimary)
+                            Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.White)
                         }
                     },
                     testTag = "btn_refresh_guide"
@@ -191,6 +192,10 @@ fun ChannelGuideRowItem(
         modifier = Modifier
             .fillMaxWidth()
             .height(72.dp),
+        focusedContainerColor = Color(0xFF222226),
+        unfocusedContainerColor = Color(0xFF141416),
+        focusedBorderColor = Color.White,
+        unfocusedBorderColor = Color(0xFF2C2C2E),
         testTag = "guide_item_${channel.id}"
     ) { isFocused ->
         Row(
@@ -204,16 +209,16 @@ fun ChannelGuideRowItem(
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                 Box(
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(42.dp)
                         .clip(CircleShape)
-                        .background(if (isFocused) TvCyanPrimary else TvSurfaceVariant),
+                        .background(if (isFocused) Color.White else Color(0xFF222226)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = channel.channelNumberFormatted,
-                        color = if (isFocused) TvBackground else TvAmberAccent,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Black
+                        color = if (isFocused) Color.Black else Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
 
@@ -223,23 +228,23 @@ fun ChannelGuideRowItem(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = channel.network.ifBlank { channel.callSign },
-                            color = TvTextPrimary,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
                         if (channel.callSign.isNotBlank() && channel.callSign != channel.network) {
                             Text(
                                 text = "  •  ${channel.callSign}",
                                 color = TvTextSecondary,
-                                fontSize = 13.sp
+                                fontSize = 12.sp
                             )
                         }
                         if (!channel.resolution.isNullOrBlank()) {
                             Text(
                                 text = "  •  ${channel.resolution}",
-                                color = TvCyanPrimary,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold
+                                color = Color(0xFF8E8E93),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Normal
                             )
                         }
                     }
@@ -260,7 +265,7 @@ fun ChannelGuideRowItem(
                     onClick = onWatchFullscreen,
                     style = if (isFocused) TvButtonStyle.PRIMARY else TvButtonStyle.SECONDARY,
                     modifier = Modifier.height(40.dp),
-                    leadingIcon = { Icon(Icons.Default.PlayArrow, contentDescription = null, tint = if (isFocused) TvBackground else TvCyanPrimary) }
+                    leadingIcon = { Icon(Icons.Default.PlayArrow, contentDescription = null, tint = if (isFocused) Color.Black else Color.White) }
                 )
 
                 TvButton(

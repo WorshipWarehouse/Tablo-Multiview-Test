@@ -2,29 +2,32 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Cinematic TV Dark Theme Colors
-val TvBackground = Color(0xFF070B14)
-val TvSurface = Color(0xFF0F172A)
-val TvSurfaceVariant = Color(0xFF1E293B)
-val TvSurfaceElevated = Color(0xFF27354E)
+// Modern Minimalist Monochrome TV Theme (Black & White)
+val TvBackground = Color(0xFF000000)
+val TvSurface = Color(0xFF101012)
+val TvSurfaceVariant = Color(0xFF1A1A1E)
+val TvSurfaceElevated = Color(0xFF26262A)
 
-val TvCyanPrimary = Color(0xFF00E5FF)
-val TvCyanLight = Color(0xFF6EFFFF)
-val TvCyanDark = Color(0xFF00B4D8)
+// Monochromatic Accent Tones
+val TvCyanPrimary = Color(0xFFFFFFFF)        // Pure crisp white primary
+val TvCyanLight = Color(0xFFF2F2F7)          // Off-white highlight
+val TvCyanDark = Color(0xFF8E8E93)           // Sophisticated neutral grey
 
-val TvAmberAccent = Color(0xFFFFB300)
-val TvAmberLight = Color(0xFFFFD54F)
+val TvAmberAccent = Color(0xFFC7C7CC)        // Refined silver/grey secondary
+val TvAmberLight = Color(0xFFE5E5EA)         // Soft platinum
 
-val TvTextPrimary = Color(0xFFFFFFFF)
-val TvTextSecondary = Color(0xFF94A3B8)
-val TvTextTertiary = Color(0xFF64748B)
+val TvTextPrimary = Color(0xFFFFFFFF)        // High contrast white text
+val TvTextSecondary = Color(0xFF8E8E93)      // Subtle readable grey
+val TvTextTertiary = Color(0xFF545458)       // Muted metadata grey
 
-val TvFocusRing = Color(0xFF00E5FF)
-val TvFocusRingAmber = Color(0xFFFFB300)
+val TvFocusRing = Color(0xFFFFFFFF)          // Focused element white ring
+val TvFocusRingAmber = Color(0xFF8E8E93)     // Secondary focus ring
 
-val TvError = Color(0xFFFF5252)
-val TvSuccess = Color(0xFF00E676)
-val TvWarning = Color(0xFFFFB74D)
+val TvError = Color(0xFFFF453A)              // Subtle modern red
+val TvSuccess = Color(0xFF30D158)            // Subtle modern green
+val TvWarning = Color(0xFFFF9F0A)            // Subtle modern amber
 
-val TvBorderNormal = Color(0xFF1E293B)
-val TvBorderFocused = Color(0xFF00E5FF)
+val TvBorderNormal = Color(0xFF242426)       // Dark hairline border
+val TvBorderFocused = Color(0xFFFFFFFF)      // Crisp white focused border
+val TvBorderGrey = Color(0xFF8E8E93)         // Dedicated grey border for active audio pane
+val TvBorderActiveAudio = Color(0xFF8E8E93)  // Grey border signifying audio & remote focus

@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -146,21 +147,15 @@ fun HomeScreen(
                     modifier = Modifier
                         .weight(1.8f)
                         .height(180.dp),
-                    focusedContainerColor = TvSurfaceElevated,
-                    unfocusedContainerColor = TvSurface,
+                    focusedContainerColor = Color(0xFF222226),
+                    unfocusedContainerColor = Color(0xFF141416),
+                    focusedBorderColor = Color.White,
+                    unfocusedBorderColor = Color(0xFF2C2C2E),
                     testTag = "btn_watch_multiview"
                 ) { isFocused ->
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(
-                                Brush.horizontalGradient(
-                                    listOf(
-                                        TvSurfaceElevated,
-                                        if (isFocused) TvCyanPrimary.copy(alpha = 0.2f) else TvSurface
-                                    )
-                                )
-                            )
                             .padding(24.dp)
                     ) {
                         Column(
@@ -177,28 +172,28 @@ fun HomeScreen(
                                         modifier = Modifier
                                             .size(40.dp)
                                             .clip(CircleShape)
-                                            .background(TvCyanPrimary),
+                                            .background(Color.White),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             Icons.Default.PlayArrow,
                                             contentDescription = "Watch",
-                                            tint = TvBackground,
-                                            modifier = Modifier.size(28.dp)
+                                            tint = Color.Black,
+                                            modifier = Modifier.size(26.dp)
                                         )
                                     }
                                     Spacer(modifier = Modifier.width(16.dp))
                                     Column {
                                         Text(
                                             text = "WATCH MULTIVIEW",
-                                            color = TvTextPrimary,
-                                            fontSize = 20.sp,
+                                            color = Color.White,
+                                            fontSize = 19.sp,
                                             fontWeight = FontWeight.Bold,
-                                            letterSpacing = 1.sp
+                                            letterSpacing = 0.5.sp
                                         )
                                         Text(
-                                            text = "Four simultaneous live TV video panes",
-                                            color = TvCyanPrimary,
+                                            text = "Simultaneous live broadcast video panes",
+                                            color = TvTextSecondary,
                                             fontSize = 13.sp
                                         )
                                     }
@@ -207,12 +202,12 @@ fun HomeScreen(
                                 // 4-Pane Mini Grid Graphic
                                 Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                                     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                        Box(modifier = Modifier.size(16.dp).background(TvCyanPrimary, RoundedCornerShape(2.dp)))
-                                        Box(modifier = Modifier.size(16.dp).background(TvSurfaceVariant, RoundedCornerShape(2.dp)))
+                                        Box(modifier = Modifier.size(16.dp).background(if (isFocused) Color.White else Color(0xFF636366), RoundedCornerShape(2.dp)))
+                                        Box(modifier = Modifier.size(16.dp).background(Color(0xFF2C2C2E), RoundedCornerShape(2.dp)))
                                     }
                                     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                        Box(modifier = Modifier.size(16.dp).background(TvSurfaceVariant, RoundedCornerShape(2.dp)))
-                                        Box(modifier = Modifier.size(16.dp).background(TvSurfaceVariant, RoundedCornerShape(2.dp)))
+                                        Box(modifier = Modifier.size(16.dp).background(Color(0xFF2C2C2E), RoundedCornerShape(2.dp)))
+                                        Box(modifier = Modifier.size(16.dp).background(Color(0xFF2C2C2E), RoundedCornerShape(2.dp)))
                                     }
                                 }
                             }
@@ -229,7 +224,7 @@ fun HomeScreen(
                                 )
                                 Text(
                                     text = "Press SELECT to Launch  ▶",
-                                    color = if (isFocused) TvCyanPrimary else TvTextTertiary,
+                                    color = if (isFocused) Color.White else Color(0xFF8E8E93),
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
@@ -244,6 +239,10 @@ fun HomeScreen(
                     modifier = Modifier
                         .weight(1f)
                         .height(180.dp),
+                    focusedContainerColor = Color(0xFF222226),
+                    unfocusedContainerColor = Color(0xFF141416),
+                    focusedBorderColor = Color.White,
+                    unfocusedBorderColor = Color(0xFF2C2C2E),
                     testTag = "btn_channel_guide"
                 ) { isFocused ->
                     Column(
@@ -256,13 +255,13 @@ fun HomeScreen(
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(CircleShape)
-                                .background(TvSurfaceVariant),
+                                .background(Color(0xFF222226)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 Icons.Default.List,
                                 contentDescription = "Guide",
-                                tint = TvCyanPrimary,
+                                tint = Color.White,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -270,8 +269,8 @@ fun HomeScreen(
                         Column {
                             Text(
                                 text = "CHANNEL GUIDE",
-                                color = TvTextPrimary,
-                                fontSize = 16.sp,
+                                color = Color.White,
+                                fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
@@ -283,7 +282,7 @@ fun HomeScreen(
 
                         Text(
                             text = "Browse EPG  ›",
-                            color = if (isFocused) TvCyanPrimary else TvTextTertiary,
+                            color = if (isFocused) Color.White else Color(0xFF8E8E93),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -296,6 +295,10 @@ fun HomeScreen(
                     modifier = Modifier
                         .weight(1f)
                         .height(180.dp),
+                    focusedContainerColor = Color(0xFF222226),
+                    unfocusedContainerColor = Color(0xFF141416),
+                    focusedBorderColor = Color.White,
+                    unfocusedBorderColor = Color(0xFF2C2C2E),
                     testTag = "btn_saved_layouts"
                 ) { isFocused ->
                     Column(
@@ -308,13 +311,13 @@ fun HomeScreen(
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(CircleShape)
-                                .background(TvSurfaceVariant),
+                                .background(Color(0xFF222226)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 Icons.Default.GridView,
                                 contentDescription = "Layouts",
-                                tint = TvAmberAccent,
+                                tint = Color.White,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -322,8 +325,8 @@ fun HomeScreen(
                         Column {
                             Text(
                                 text = "SAVED PRESETS",
-                                color = TvTextPrimary,
-                                fontSize = 16.sp,
+                                color = Color.White,
+                                fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
@@ -335,7 +338,7 @@ fun HomeScreen(
 
                         Text(
                             text = "Manage Presets  ›",
-                            color = if (isFocused) TvAmberAccent else TvTextTertiary,
+                            color = if (isFocused) Color.White else Color(0xFF8E8E93),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -348,6 +351,10 @@ fun HomeScreen(
                     modifier = Modifier
                         .weight(0.9f)
                         .height(180.dp),
+                    focusedContainerColor = Color(0xFF222226),
+                    unfocusedContainerColor = Color(0xFF141416),
+                    focusedBorderColor = Color.White,
+                    unfocusedBorderColor = Color(0xFF2C2C2E),
                     testTag = "btn_settings"
                 ) { isFocused ->
                     Column(
@@ -360,13 +367,13 @@ fun HomeScreen(
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(CircleShape)
-                                .background(TvSurfaceVariant),
+                                .background(Color(0xFF222226)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 Icons.Default.Settings,
                                 contentDescription = "Settings",
-                                tint = TvTextSecondary,
+                                tint = Color.White,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -374,8 +381,8 @@ fun HomeScreen(
                         Column {
                             Text(
                                 text = "SETTINGS",
-                                color = TvTextPrimary,
-                                fontSize = 16.sp,
+                                color = Color.White,
+                                fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
@@ -387,7 +394,7 @@ fun HomeScreen(
 
                         Text(
                             text = "Diagnostics  ›",
-                            color = if (isFocused) TvCyanPrimary else TvTextTertiary,
+                            color = if (isFocused) Color.White else Color(0xFF8E8E93),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -406,15 +413,15 @@ fun HomeScreen(
                 Text(
                     text = "AVAILABLE CHANNELS",
                     color = TvTextSecondary,
-                    fontSize = 13.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
+                    letterSpacing = 0.5.sp
                 )
                 Text(
                     text = "${channels.size} Detected",
-                    color = TvCyanPrimary,
+                    color = Color.White,
                     fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.Medium
                 )
             }
 
@@ -427,13 +434,14 @@ fun HomeScreen(
                         .fillMaxWidth()
                         .height(100.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(TvSurface),
+                        .background(Color(0xFF141416))
+                        .border(1.dp, Color(0xFF2C2C2E), RoundedCornerShape(8.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "No channels loaded yet. Press Channel Guide or Settings to refresh.",
-                        color = TvTextTertiary,
-                        fontSize = 14.sp
+                        color = TvTextSecondary,
+                        fontSize = 13.sp
                     )
                 }
             } else {
@@ -452,6 +460,10 @@ fun HomeScreen(
                             modifier = Modifier
                                 .width(160.dp)
                                 .height(90.dp),
+                            focusedContainerColor = Color(0xFF222226),
+                            unfocusedContainerColor = Color(0xFF141416),
+                            focusedBorderColor = Color.White,
+                            unfocusedBorderColor = Color(0xFF2C2C2E),
                             testTag = "channel_card_${channel.id}"
                         ) { isFocused ->
                             Column(
@@ -467,9 +479,9 @@ fun HomeScreen(
                                 ) {
                                     Text(
                                         text = channel.channelNumberFormatted,
-                                        color = if (isFocused) TvCyanPrimary else TvAmberAccent,
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Black
+                                        color = if (isFocused) Color.White else Color(0xFFD1D1D6),
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold
                                     )
                                     if (!channel.resolution.isNullOrBlank()) {
                                         Text(
@@ -482,9 +494,9 @@ fun HomeScreen(
 
                                 Text(
                                     text = channel.network.ifBlank { channel.callSign },
-                                    color = TvTextPrimary,
+                                    color = Color.White,
                                     fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold,
+                                    fontWeight = FontWeight.Medium,
                                     maxLines = 1
                                 )
                             }

@@ -15,12 +15,13 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
 import com.example.model.StreamPlaybackState
 
 /**
  * Dedicated ExoPlayer instance for a single multiview video pane.
- * Configured specifically for Amazon Fire TV / Android TV hardware acceleration
- * and lean memory/buffer footprint.
+ * Configured specifically for Amazon Fire TV / Android TV hardware acceleration,
+ * smooth live HLS chunk playback, and buffer underrun prevention.
  */
 @OptIn(UnstableApi::class)
 class TabloPlayerInstance(
@@ -51,18 +52,26 @@ class TabloPlayerInstance(
     private fun initPlayer() {
         if (exoPlayer != null) return
 
+        // Optimized for real-time broadcast HLS chunk buffering over local Wi-Fi/Ethernet.
+        // Giving 2.5s initial buffer allows at least 1 full ATSC MPEG-TS chunk before playback,
+        // and 15s-30s headroom prevents repeated underruns.
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                /* minBufferMs = */ 3000,
-                /* maxBufferMs = */ 8000,
-                /* bufferForPlaybackMs = */ 1200,
-                /* bufferForPlaybackAfterRebufferMs = */ 2000
+                /* minBufferMs = */ 15000,
+                /* maxBufferMs = */ 30000,
+                /* bufferForPlaybackMs = */ 2500,
+                /* bufferForPlaybackAfterRebufferMs = */ 4500
+            )
+            .setBackBuffer(
+                /* backBufferDurationMs = */ 10000,
+                /* retainBackBufferFromKeyframe = */ true
             )
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
 
         val renderersFactory = DefaultRenderersFactory(context)
             .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+            .setEnableDecoderFallback(true)
 
         exoPlayer = ExoPlayer.Builder(context, renderersFactory)
             .setLoadControl(loadControl)
@@ -106,14 +115,32 @@ class TabloPlayerInstance(
         val player = exoPlayer ?: return
         onStateChange(paneIndex, StreamPlaybackState.LOADING, null)
 
-        val dataSourceFactory = DefaultDataSource.Factory(context)
+        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+            .setConnectTimeoutMs(15000)
+            .setReadTimeoutMs(20000)
+            .setAllowCrossProtocolRedirects(true)
+            .setKeepPostFor302Redirects(true)
+
+        val dataSourceFactory = DefaultDataSource.Factory(context, httpDataSourceFactory)
+
+        // Setting a healthy target offset prevents ExoPlayer from catching up directly
+        // to the incomplete segment at the live edge of the Tablo playlist.
         val mediaItem = MediaItem.Builder()
             .setUri(Uri.parse(url))
             .setMimeType(MimeTypes.APPLICATION_M3U8)
+            .setLiveConfiguration(
+                MediaItem.LiveConfiguration.Builder()
+                    .setTargetOffsetMs(6000)
+                    .setMinOffsetMs(3000)
+                    .setMaxOffsetMs(15000)
+                    .setMinPlaybackSpeed(1.0f)
+                    .setMaxPlaybackSpeed(1.0f)
+                    .build()
+            )
             .build()
 
         val hlsMediaSource = HlsMediaSource.Factory(dataSourceFactory)
-            .setAllowChunklessPreparation(true)
+            .setAllowChunklessPreparation(false) // Tablo MPEG-TS playlists require chunk parsing
             .createMediaSource(mediaItem)
 
         player.setMediaSource(hlsMediaSource)

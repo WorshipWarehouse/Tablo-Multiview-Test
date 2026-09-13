@@ -28,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -73,7 +74,7 @@ fun SavedLayoutsScreen(
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
-                        tint = TvCyanPrimary
+                        tint = Color.White
                     )
                 },
                 testTag = "btn_layouts_back"
@@ -82,15 +83,15 @@ fun SavedLayoutsScreen(
             Column {
                 Text(
                     text = "SAVED MULTIVIEW PRESETS",
-                    color = TvTextPrimary,
-                    fontSize = 20.sp,
+                    color = Color.White,
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
+                    letterSpacing = 0.5.sp
                 )
                 Text(
                     text = "Quickly launch your favorite channel grid combinations",
                     color = TvTextSecondary,
-                    fontSize = 13.sp
+                    fontSize = 12.sp
                 )
             }
         }
@@ -102,28 +103,29 @@ fun SavedLayoutsScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(TvSurface),
+                    .background(Color(0xFF141416))
+                    .padding(32.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
                         Icons.Default.GridView,
                         contentDescription = null,
-                        tint = TvTextTertiary,
-                        modifier = Modifier.size(48.dp)
+                        tint = TvTextSecondary,
+                        modifier = Modifier.size(44.dp)
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
                         text = "No saved presets yet",
-                        color = TvTextPrimary,
-                        fontSize = 16.sp,
+                        color = Color.White,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "While watching Multiview, press SELECT and choose 'Save Layout Preset'.",
+                        text = "While watching Multiview, press SELECT and choose 'Save Preset'.",
                         color = TvTextSecondary,
-                        fontSize = 13.sp
+                        fontSize = 12.sp
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     TvButton(
@@ -160,6 +162,10 @@ fun SavedLayoutCardItem(
         modifier = Modifier
             .fillMaxWidth()
             .height(84.dp),
+        focusedContainerColor = Color(0xFF222226),
+        unfocusedContainerColor = Color(0xFF141416),
+        focusedBorderColor = Color.White,
+        unfocusedBorderColor = Color(0xFF2C2C2E),
         testTag = "preset_card_${layout.id}"
     ) { isFocused ->
         Row(
@@ -174,15 +180,15 @@ fun SavedLayoutCardItem(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (isFocused) TvAmberAccent else TvSurfaceVariant)
+                        .background(if (isFocused) Color.White else Color(0xFF222226))
                         .padding(horizontal = 12.dp, vertical = 6.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "${layout.mode.paneCount}-PANE",
-                        color = if (isFocused) TvBackground else TvAmberAccent,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Black
+                        color = if (isFocused) Color.Black else Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
 
@@ -191,8 +197,8 @@ fun SavedLayoutCardItem(
                 Column {
                     Text(
                         text = layout.name,
-                        color = TvTextPrimary,
-                        fontSize = 17.sp,
+                        color = Color.White,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold
                     )
 
@@ -216,7 +222,7 @@ fun SavedLayoutCardItem(
                         Icon(
                             Icons.Default.PlayArrow,
                             contentDescription = null,
-                            tint = if (isFocused) TvBackground else TvCyanPrimary
+                            tint = if (isFocused) Color.Black else Color.White
                         )
                     }
                 )
