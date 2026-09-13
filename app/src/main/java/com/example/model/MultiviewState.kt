@@ -22,7 +22,8 @@ data class PaneState(
     val playbackState: StreamPlaybackState = StreamPlaybackState.IDLE,
     val errorMessage: String? = null,
     val isMuted: Boolean = false,
-    val streamUrl: String? = null
+    val streamUrl: String? = null,
+    val streamToken: String? = null
 )
 
 data class MultiviewUiState(

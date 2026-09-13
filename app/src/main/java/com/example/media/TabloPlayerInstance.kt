@@ -53,17 +53,18 @@ class TabloPlayerInstance(
         if (exoPlayer != null) return
 
         // Optimized for real-time broadcast HLS chunk buffering over local Wi-Fi/Ethernet.
-        // Giving 2.5s initial buffer allows at least 1 full ATSC MPEG-TS chunk before playback,
-        // and 15s-30s headroom prevents repeated underruns.
+        // Tablo ATSC tuners produce rolling windows of ~6-8 seconds total.
+        // A low initial buffer (500ms) allows immediate playback start on the first available chunk,
+        // avoiding infinite buffering traps caused by oversized buffer thresholds.
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                /* minBufferMs = */ 15000,
-                /* maxBufferMs = */ 30000,
-                /* bufferForPlaybackMs = */ 2500,
-                /* bufferForPlaybackAfterRebufferMs = */ 4500
+                /* minBufferMs = */ 2500,
+                /* maxBufferMs = */ 12000,
+                /* bufferForPlaybackMs = */ 500,
+                /* bufferForPlaybackAfterRebufferMs = */ 1200
             )
             .setBackBuffer(
-                /* backBufferDurationMs = */ 10000,
+                /* backBufferDurationMs = */ 5000,
                 /* retainBackBufferFromKeyframe = */ true
             )
             .setPrioritizeTimeOverSizeThresholds(true)
@@ -116,31 +117,24 @@ class TabloPlayerInstance(
         onStateChange(paneIndex, StreamPlaybackState.LOADING, null)
 
         val httpDataSourceFactory = DefaultHttpDataSource.Factory()
-            .setConnectTimeoutMs(15000)
-            .setReadTimeoutMs(20000)
+            .setUserAgent(com.example.data.tablo.TabloAuthService.LOCAL_USER_AGENT)
+            .setConnectTimeoutMs(10000)
+            .setReadTimeoutMs(15000)
             .setAllowCrossProtocolRedirects(true)
             .setKeepPostFor302Redirects(true)
 
         val dataSourceFactory = DefaultDataSource.Factory(context, httpDataSourceFactory)
 
-        // Setting a healthy target offset prevents ExoPlayer from catching up directly
-        // to the incomplete segment at the live edge of the Tablo playlist.
+        // For live broadcast HLS from Tablo tuners, allow ExoPlayer to align with
+        // the HLS manifest's live edge rather than forcing fixed 6s offsets that
+        // exceed initial window duration.
         val mediaItem = MediaItem.Builder()
             .setUri(Uri.parse(url))
             .setMimeType(MimeTypes.APPLICATION_M3U8)
-            .setLiveConfiguration(
-                MediaItem.LiveConfiguration.Builder()
-                    .setTargetOffsetMs(6000)
-                    .setMinOffsetMs(3000)
-                    .setMaxOffsetMs(15000)
-                    .setMinPlaybackSpeed(1.0f)
-                    .setMaxPlaybackSpeed(1.0f)
-                    .build()
-            )
             .build()
 
         val hlsMediaSource = HlsMediaSource.Factory(dataSourceFactory)
-            .setAllowChunklessPreparation(false) // Tablo MPEG-TS playlists require chunk parsing
+            .setAllowChunklessPreparation(true)
             .createMediaSource(mediaItem)
 
         player.setMediaSource(hlsMediaSource)

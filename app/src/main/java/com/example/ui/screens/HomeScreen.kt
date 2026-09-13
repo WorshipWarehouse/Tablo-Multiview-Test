@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,9 +17,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.PlayArrow
@@ -39,6 +43,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.model.MultiviewLayoutMode
 import com.example.model.TabloConnectionState
 import com.example.ui.components.TvButton
 import com.example.ui.components.TvButtonStyle
@@ -132,6 +137,7 @@ fun HomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 32.dp)
         ) {
             Spacer(modifier = Modifier.height(8.dp))
@@ -402,6 +408,85 @@ fun HomeScreen(
                 }
             }
 
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Choose Multiview Screens Section
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Dashboard,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "CHOOSE MULTIVIEW SCREENS",
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
+                    )
+                }
+                Text(
+                    text = "Select 1, 2, 3, or 4 simultaneous live screens",
+                    color = TvTextSecondary,
+                    fontSize = 12.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // 1, 2, 3, 4 Screens Cards Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // 1 Screen Card
+                MultiviewLayoutSelectorCard(
+                    title = "1 Screen",
+                    subtitle = "Fullscreen Live TV",
+                    badge = "1 Tuner",
+                    mode = MultiviewLayoutMode.ONE_PANE,
+                    modifier = Modifier.weight(1f),
+                    onClick = { viewModel.startMultiviewWithMode(MultiviewLayoutMode.ONE_PANE) }
+                )
+
+                // 2 Screens Card
+                MultiviewLayoutSelectorCard(
+                    title = "2 Screens",
+                    subtitle = "Dual Split View",
+                    badge = "2 Tuners",
+                    mode = MultiviewLayoutMode.TWO_PANE,
+                    modifier = Modifier.weight(1f),
+                    onClick = { viewModel.startMultiviewWithMode(MultiviewLayoutMode.TWO_PANE) }
+                )
+
+                // 3 Screens Card
+                MultiviewLayoutSelectorCard(
+                    title = "3 Screens",
+                    subtitle = "Primary + 2 Stacked",
+                    badge = "3 Tuners",
+                    mode = MultiviewLayoutMode.THREE_PANE,
+                    modifier = Modifier.weight(1f),
+                    onClick = { viewModel.startMultiviewWithMode(MultiviewLayoutMode.THREE_PANE) }
+                )
+
+                // 4 Screens Card
+                MultiviewLayoutSelectorCard(
+                    title = "4 Screens",
+                    subtitle = "Quad 2x2 Grid",
+                    badge = "4 Tuners",
+                    mode = MultiviewLayoutMode.FOUR_PANE,
+                    modifier = Modifier.weight(1f),
+                    onClick = { viewModel.startMultiviewWithMode(MultiviewLayoutMode.FOUR_PANE) }
+                )
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
 
             // Channels Strip Header
@@ -501,6 +586,139 @@ fun HomeScreen(
                                 )
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MultiviewLayoutSelectorCard(
+    title: String,
+    subtitle: String,
+    badge: String,
+    mode: MultiviewLayoutMode,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    TvFocusableCard(
+        onClick = onClick,
+        modifier = modifier.height(130.dp),
+        focusedContainerColor = Color(0xFF222226),
+        unfocusedContainerColor = Color(0xFF141416),
+        focusedBorderColor = Color.White,
+        unfocusedBorderColor = Color(0xFF2C2C2E),
+        testTag = "btn_layout_${mode.name.lowercase()}"
+    ) { isFocused ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                // Layout mini diagram preview
+                LayoutPreviewThumbnail(mode = mode, isFocused = isFocused)
+
+                // Tuner count badge
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(if (isFocused) Color.White.copy(alpha = 0.2f) else Color(0xFF2C2C2E))
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = badge,
+                        color = if (isFocused) Color.White else Color(0xFFA1A1AA),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+
+            Column {
+                Text(
+                    text = title,
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = subtitle,
+                    color = TvTextSecondary,
+                    fontSize = 11.sp,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LayoutPreviewThumbnail(
+    mode: MultiviewLayoutMode,
+    isFocused: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val activeColor = if (isFocused) Color.White else Color(0xFF8E8E93)
+
+    Box(
+        modifier = modifier
+            .size(width = 44.dp, height = 28.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(Color(0xFF0A0A0C))
+            .border(1.dp, if (isFocused) Color.White else Color(0xFF38383A), RoundedCornerShape(4.dp))
+            .padding(3.dp)
+    ) {
+        when (mode) {
+            MultiviewLayoutMode.ONE_PANE -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(activeColor, RoundedCornerShape(2.dp))
+                )
+            }
+            MultiviewLayoutMode.TWO_PANE -> {
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Box(modifier = Modifier.weight(1f).fillMaxHeight().background(activeColor, RoundedCornerShape(2.dp)))
+                    Box(modifier = Modifier.weight(1f).fillMaxHeight().background(activeColor, RoundedCornerShape(2.dp)))
+                }
+            }
+            MultiviewLayoutMode.THREE_PANE -> {
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Box(modifier = Modifier.weight(1.5f).fillMaxHeight().background(activeColor, RoundedCornerShape(2.dp)))
+                    Column(
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Box(modifier = Modifier.weight(1f).fillMaxWidth().background(activeColor, RoundedCornerShape(2.dp)))
+                        Box(modifier = Modifier.weight(1f).fillMaxWidth().background(activeColor, RoundedCornerShape(2.dp)))
+                    }
+                }
+            }
+            MultiviewLayoutMode.FOUR_PANE -> {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Box(modifier = Modifier.weight(1f).fillMaxHeight().background(activeColor, RoundedCornerShape(2.dp)))
+                        Box(modifier = Modifier.weight(1f).fillMaxHeight().background(activeColor, RoundedCornerShape(2.dp)))
+                    }
+                    Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Box(modifier = Modifier.weight(1f).fillMaxHeight().background(activeColor, RoundedCornerShape(2.dp)))
+                        Box(modifier = Modifier.weight(1f).fillMaxHeight().background(activeColor, RoundedCornerShape(2.dp)))
                     }
                 }
             }

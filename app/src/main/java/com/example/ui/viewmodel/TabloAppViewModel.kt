@@ -207,7 +207,23 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
             assignedChannels.add(channel)
         }
 
+        preferences.saveLastLayoutMode(lastMode)
         launchMultiview(lastMode, assignedChannels)
+    }
+
+    fun startMultiviewWithMode(mode: MultiviewLayoutMode) {
+        val allChannels = channelRepository.channels.value
+        val lastChannelIds = preferences.getLastPaneChannels()
+        val assignedChannels = mutableListOf<TabloChannel?>()
+
+        for (i in 0 until 4) {
+            val chId = lastChannelIds.getOrNull(i)
+            val channel = allChannels.find { it.id == chId } ?: allChannels.getOrNull(i)
+            assignedChannels.add(channel)
+        }
+
+        preferences.saveLastLayoutMode(mode)
+        launchMultiview(mode, assignedChannels)
     }
 
     fun launchMultiview(
@@ -276,6 +292,7 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
 
     fun changeLayoutMode(newMode: MultiviewLayoutMode) {
         val current = _multiviewState.value
+        val oldMode = current.layoutMode
         val updatedActive = if (current.activePaneIndex >= newMode.paneCount) 0 else current.activePaneIndex
 
         _multiviewState.value = current.copy(
@@ -284,29 +301,40 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
             isFullScreenSingle = (newMode == MultiviewLayoutMode.ONE_PANE),
             isActionMenuOpen = false
         )
+        preferences.saveLastLayoutMode(newMode)
 
-        // Ensure newly visible panes have streams running
-        val allChannels = channelRepository.channels.value
-        for (i in 0 until newMode.paneCount) {
-            val pane = _multiviewState.value.panes[i]
-            if (pane.channel == null && allChannels.isNotEmpty()) {
-                val fallbackChannel = allChannels.getOrNull(i)
-                if (fallbackChannel != null) {
-                    val newPanes = _multiviewState.value.panes.map {
-                        if (it.paneIndex == i) it.copy(channel = fallbackChannel) else it
+        val device = deviceRepository.currentDevice.value
+
+        // If decreasing pane count: Stop and release tuners on Tablo hardware for panes no longer visible
+        if (newMode.paneCount < oldMode.paneCount) {
+            for (i in newMode.paneCount until 4) {
+                streamJobs[i]?.cancel()
+                val token = playerManager.stopPane(i)
+                if (device != null && !token.isNullOrBlank()) {
+                    viewModelScope.launch {
+                        apiClient.stopWatching(device.host, token, device.port)
                     }
-                    _multiviewState.value = _multiviewState.value.copy(panes = newPanes)
-                    startStreamForPane(i, fallbackChannel)
                 }
-            } else if (pane.channel != null && pane.playbackState == StreamPlaybackState.IDLE) {
-                startStreamForPane(i, pane.channel)
+                updatePanePlaybackState(i, StreamPlaybackState.IDLE, null)
             }
-        }
-
-        // Stop streams for panes no longer visible
-        for (i in newMode.paneCount until 4) {
-            streamJobs[i]?.cancel()
-            playerManager.stopPane(i)
+        } else {
+            // Ensure newly visible panes have streams running
+            val allChannels = channelRepository.channels.value
+            for (i in 0 until newMode.paneCount) {
+                val pane = _multiviewState.value.panes[i]
+                if (pane.channel == null && allChannels.isNotEmpty()) {
+                    val fallbackChannel = allChannels.getOrNull(i)
+                    if (fallbackChannel != null) {
+                        val newPanes = _multiviewState.value.panes.map {
+                            if (it.paneIndex == i) it.copy(channel = fallbackChannel) else it
+                        }
+                        _multiviewState.value = _multiviewState.value.copy(panes = newPanes)
+                        startStreamForPane(i, fallbackChannel)
+                    }
+                } else if (pane.channel != null && (pane.playbackState == StreamPlaybackState.IDLE || pane.playbackState == StreamPlaybackState.ERROR)) {
+                    startStreamForPane(i, pane.channel)
+                }
+            }
         }
 
         playerManager.setActiveAudioPane(updatedActive)
@@ -315,6 +343,7 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
 
     fun toggleFullScreenActivePane() {
         val current = _multiviewState.value
+        val device = deviceRepository.currentDevice.value
         if (current.isFullScreenSingle) {
             // Restore previous mode
             changeLayoutMode(current.previousModeBeforeFullScreen)
@@ -325,11 +354,17 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
                 isFullScreenSingle = true,
                 isActionMenuOpen = false
             )
-            // Other panes stop/pause
+            // Other panes stop/pause and release tuner to save bandwidth and Tablo tuners
             for (i in 0 until 4) {
                 if (i != current.activePaneIndex) {
                     streamJobs[i]?.cancel()
-                    playerManager.stopPane(i)
+                    val token = playerManager.stopPane(i)
+                    if (device != null && !token.isNullOrBlank()) {
+                        viewModelScope.launch {
+                            apiClient.stopWatching(device.host, token, device.port)
+                        }
+                    }
+                    updatePanePlaybackState(i, StreamPlaybackState.IDLE, null)
                 }
             }
             playerManager.setActiveAudioPane(current.activePaneIndex)
@@ -377,6 +412,15 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
         val device = deviceRepository.currentDevice.value ?: return
 
         streamJobs[paneIndex]?.cancel()
+
+        // If this pane had an active stream token, stop it first to prevent tuner leaks
+        val oldToken = playerManager.getStreamToken(paneIndex)
+        if (!oldToken.isNullOrBlank()) {
+            viewModelScope.launch {
+                apiClient.stopWatching(device.host, oldToken, device.port)
+            }
+        }
+
         updatePanePlaybackState(paneIndex, StreamPlaybackState.LOADING, null)
 
         streamJobs[paneIndex] = viewModelScope.launch {
@@ -385,13 +429,22 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
             if (result.isSuccess) {
                 val stream = result.getOrThrow()
                 playerManager.playPaneStream(paneIndex, stream.playlistUrl, channel.id, stream.token)
+
+                // Update pane with stream details
+                val updatedPanes = _multiviewState.value.panes.map {
+                    if (it.paneIndex == paneIndex) {
+                        it.copy(streamUrl = stream.playlistUrl, streamToken = stream.token)
+                    } else it
+                }
+                _multiviewState.value = _multiviewState.value.copy(panes = updatedPanes)
+
                 // Load current airing in background
                 val airing = channelRepository.loadCurrentAiring(device.host, channel.id, device.port)
                 if (airing != null) {
-                    val updatedPanes = _multiviewState.value.panes.map {
+                    val panesWithAiring = _multiviewState.value.panes.map {
                         if (it.paneIndex == paneIndex) it.copy(airing = airing) else it
                     }
-                    _multiviewState.value = _multiviewState.value.copy(panes = updatedPanes)
+                    _multiviewState.value = _multiviewState.value.copy(panes = panesWithAiring)
                 }
             } else {
                 val errorMsg = result.exceptionOrNull()?.message ?: "Stream unavailable"
@@ -487,10 +540,20 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun stopAllStreams() {
+        val device = deviceRepository.currentDevice.value
         for (i in 0 until 4) {
             streamJobs[i]?.cancel()
         }
-        playerManager.releaseAll()
+        val releasedTokens = playerManager.releaseAll()
+        if (device != null && releasedTokens.isNotEmpty()) {
+            viewModelScope.launch {
+                for (token in releasedTokens) {
+                    try {
+                        apiClient.stopWatching(device.host, token, device.port)
+                    } catch (_: Exception) {}
+                }
+            }
+        }
     }
 
     override fun onCleared() {

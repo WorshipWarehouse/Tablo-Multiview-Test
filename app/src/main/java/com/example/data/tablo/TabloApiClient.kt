@@ -401,60 +401,60 @@ class TabloApiClient(
             var lastResponseCode = 0
             var lastResponseBody = ""
 
-            // Strategy 1: Tablo Gen 4 with ?lh and application/x-www-form-urlencoded
+            // Strategy 1: Direct JSON POST to Tablo (standard Gen 4 per trevor-viljoen/tablo-api)
             try {
-                val primaryUrl = "http://$host:$port$path?lh"
-                val primaryRequest = Request.Builder()
-                    .url(primaryUrl)
-                    .post(bodyString.toRequestBody(formMediaType))
+                val directJsonUrl = "http://$host:$port$path"
+                val directJsonRequest = Request.Builder()
+                    .url(directJsonUrl)
+                    .post(bodyString.toRequestBody(jsonMediaType))
                     .header("Authorization", authHeader)
                     .header("Date", dateHeader)
-                    .header("Content-Type", "application/x-www-form-urlencoded")
-                    .header("Accept", "*/*")
-                    .header("Connection", "keep-alive")
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json, */*")
                     .header("User-Agent", TabloAuthService.LOCAL_USER_AGENT)
                     .build()
 
-                httpClient.newCall(primaryRequest).execute().use { response ->
+                httpClient.newCall(directJsonRequest).execute().use { response ->
                     lastResponseCode = response.code
                     lastResponseBody = response.body?.string() ?: ""
                     if (response.isSuccessful) {
-                        return@withContext parseWatchResponse(lastResponseBody, cleanChannelId, host)
+                        return@withContext parseWatchResponse(lastResponseBody, cleanChannelId, host, port)
                     }
                 }
             } catch (e: Exception) {
-                lastResponseBody = e.message ?: "Primary request error"
+                lastResponseBody = e.message ?: "Direct JSON request error"
             }
 
-            // Strategy 2: Tablo Gen 4 with ?lh and application/json
-            if (lastResponseCode == 404 || lastResponseCode == 400 || lastResponseCode == 0) {
+            // Strategy 2: Tablo Gen 4 with ?lh routing and application/json
+            if (lastResponseCode != 200) {
                 try {
-                    val jsonUrl = "http://$host:$port$path?lh"
-                    val jsonRequest = Request.Builder()
-                        .url(jsonUrl)
+                    val lhJsonUrl = "http://$host:$port$path?lh"
+                    val lhJsonRequest = Request.Builder()
+                        .url(lhJsonUrl)
                         .post(bodyString.toRequestBody(jsonMediaType))
                         .header("Authorization", authHeader)
                         .header("Date", dateHeader)
                         .header("Content-Type", "application/json")
-                        .header("Accept", "application/json")
+                        .header("Accept", "application/json, */*")
                         .header("User-Agent", TabloAuthService.LOCAL_USER_AGENT)
                         .build()
 
-                    httpClient.newCall(jsonRequest).execute().use { response ->
+                    httpClient.newCall(lhJsonRequest).execute().use { response ->
+                        lastResponseCode = response.code
+                        val body = response.body?.string() ?: ""
                         if (response.isSuccessful) {
-                            val body = response.body?.string() ?: ""
-                            return@withContext parseWatchResponse(body, cleanChannelId, host)
+                            return@withContext parseWatchResponse(body, cleanChannelId, host, port)
                         }
                     }
                 } catch (_: Exception) {}
             }
 
-            // Strategy 3: Tablo without ?lh
-            if (lastResponseCode == 404 || lastResponseCode == 0) {
+            // Strategy 3: Form-urlencoded with ?lh
+            if (lastResponseCode != 200) {
                 try {
-                    val directUrl = "http://$host:$port$path"
-                    val directRequest = Request.Builder()
-                        .url(directUrl)
+                    val formUrl = "http://$host:$port$path?lh"
+                    val formRequest = Request.Builder()
+                        .url(formUrl)
                         .post(bodyString.toRequestBody(formMediaType))
                         .header("Authorization", authHeader)
                         .header("Date", dateHeader)
@@ -462,17 +462,17 @@ class TabloApiClient(
                         .header("User-Agent", TabloAuthService.LOCAL_USER_AGENT)
                         .build()
 
-                    httpClient.newCall(directRequest).execute().use { response ->
+                    httpClient.newCall(formRequest).execute().use { response ->
                         if (response.isSuccessful) {
                             val body = response.body?.string() ?: ""
-                            return@withContext parseWatchResponse(body, cleanChannelId, host)
+                            return@withContext parseWatchResponse(body, cleanChannelId, host, port)
                         }
                     }
                 } catch (_: Exception) {}
             }
 
             // Strategy 4: Legacy Tablo with blank POST
-            if (lastResponseCode == 404 || lastResponseCode == 0) {
+            if (lastResponseCode != 200) {
                 try {
                     val blankUrl = "http://$host:$port$path"
                     val (blankAuth, blankDate) = authService.makeDeviceAuth("POST", path, "")
@@ -487,7 +487,7 @@ class TabloApiClient(
                     httpClient.newCall(blankRequest).execute().use { response ->
                         if (response.isSuccessful) {
                             val body = response.body?.string() ?: ""
-                            return@withContext parseWatchResponse(body, cleanChannelId, host)
+                            return@withContext parseWatchResponse(body, cleanChannelId, host, port)
                         }
                     }
                 } catch (_: Exception) {}
@@ -507,15 +507,25 @@ class TabloApiClient(
         }
     }
 
-    private fun parseWatchResponse(body: String, cleanChannelId: String, host: String): Result<TabloStream> {
+    private fun parseWatchResponse(body: String, cleanChannelId: String, host: String, port: Int = 8885): Result<TabloStream> {
         return try {
             val json = JSONObject(body)
             var playlistUrl = json.optString("playlist_url", "")
             if (playlistUrl.isBlank()) {
                 playlistUrl = json.optString("url", "")
             }
+            if (playlistUrl.isBlank()) {
+                val streamObj = json.optJSONObject("stream")
+                if (streamObj != null) {
+                    playlistUrl = streamObj.optString("playlist_url", "").ifBlank {
+                        streamObj.optString("url", "")
+                    }
+                }
+            }
 
-            val token = json.optString("token", null)
+            val token = json.optString("token", "").ifBlank {
+                json.optJSONObject("stream")?.optString("token", "") ?: ""
+            }.ifBlank { null }
             val expires = json.optString("expires", null)
 
             if (playlistUrl.isBlank()) {
@@ -524,10 +534,25 @@ class TabloApiClient(
                 )
             }
 
-            // Resolve relative URLs to Tablo host
+            // Resolve relative URLs or sanitize loopback/localhost hostnames
             if (!playlistUrl.startsWith("http://") && !playlistUrl.startsWith("https://")) {
                 val cleanPath = if (playlistUrl.startsWith("/")) playlistUrl else "/$playlistUrl"
-                playlistUrl = "http://$host:8888$cleanPath"
+                playlistUrl = "http://$host:$port$cleanPath"
+            } else {
+                try {
+                    val uri = java.net.URI(playlistUrl)
+                    val uriHost = uri.host
+                    if (uriHost == "127.0.0.1" || uriHost == "localhost" || uriHost == "0.0.0.0") {
+                        val actualPort = if (uri.port > 0) uri.port else port
+                        val pathAndQuery = buildString {
+                            append(uri.rawPath)
+                            if (uri.rawQuery != null) {
+                                append("?").append(uri.rawQuery)
+                            }
+                        }
+                        playlistUrl = "http://$host:$actualPort$pathAndQuery"
+                    }
+                } catch (_: Exception) {}
             }
 
             Result.success(
@@ -544,7 +569,8 @@ class TabloApiClient(
     }
 
     /**
-     * Stop watching and release the tuner on the Tablo Gen 4 DVR.
+     * Stop watching and release the physical tuner on the Tablo DVR.
+     * Essential to prevent tuner starvation on 2-tuner and 4-tuner devices.
      */
     suspend fun stopWatching(host: String, token: String?, port: Int = 8885) =
         withContext(Dispatchers.IO) {

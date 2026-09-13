@@ -65,13 +65,19 @@ class MultiviewPlayerManager(
         }
     }
 
-    fun stopPane(paneIndex: Int) {
-        players[paneIndex]?.stop()
+    fun getStreamToken(paneIndex: Int): String? = players.getOrNull(paneIndex)?.currentStreamToken
+
+    fun stopPane(paneIndex: Int): String? {
+        val token = players.getOrNull(paneIndex)?.currentStreamToken
+        players.getOrNull(paneIndex)?.stop()
+        return token
     }
 
-    fun releasePane(paneIndex: Int) {
-        players[paneIndex]?.release()
+    fun releasePane(paneIndex: Int): String? {
+        val token = players.getOrNull(paneIndex)?.currentStreamToken
+        players.getOrNull(paneIndex)?.release()
         players[paneIndex] = null
+        return token
     }
 
     fun pauseAll() {
@@ -87,10 +93,16 @@ class MultiviewPlayerManager(
         updateAudioRouting()
     }
 
-    fun releaseAll() {
+    fun releaseAll(): List<String> {
+        val releasedTokens = mutableListOf<String>()
         for (i in 0 until 4) {
+            val token = players[i]?.currentStreamToken
+            if (!token.isNullOrBlank()) {
+                releasedTokens.add(token)
+            }
             players[i]?.release()
             players[i] = null
         }
+        return releasedTokens
     }
 }

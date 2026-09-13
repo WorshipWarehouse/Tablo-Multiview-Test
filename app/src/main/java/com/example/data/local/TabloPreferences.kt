@@ -147,6 +147,10 @@ class TabloPreferences(context: Context) {
             .apply()
     }
 
+    fun saveLastLayoutMode(mode: MultiviewLayoutMode) {
+        prefs.edit().putString(KEY_LAST_LAYOUT_MODE, mode.name).apply()
+    }
+
     fun getLastLayoutMode(): MultiviewLayoutMode {
         val modeStr = prefs.getString(KEY_LAST_LAYOUT_MODE, null) ?: return MultiviewLayoutMode.FOUR_PANE
         return try {

@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SwapHoriz
@@ -107,6 +108,33 @@ fun MultiviewScreen(
         modifier = modifier
             .fillMaxSize()
             .background(Color.Black)
+            .onKeyEvent { keyEvent ->
+                if (keyEvent.type == KeyEventType.KeyUp) {
+                    when (keyEvent.key) {
+                        Key.One, Key.NumPad1 -> {
+                            viewModel.changeLayoutMode(MultiviewLayoutMode.ONE_PANE)
+                            true
+                        }
+                        Key.Two, Key.NumPad2 -> {
+                            viewModel.changeLayoutMode(MultiviewLayoutMode.TWO_PANE)
+                            true
+                        }
+                        Key.Three, Key.NumPad3 -> {
+                            viewModel.changeLayoutMode(MultiviewLayoutMode.THREE_PANE)
+                            true
+                        }
+                        Key.Four, Key.NumPad4 -> {
+                            viewModel.changeLayoutMode(MultiviewLayoutMode.FOUR_PANE)
+                            true
+                        }
+                        Key.M, Key.Menu -> {
+                            viewModel.toggleActionMenu()
+                            true
+                        }
+                        else -> false
+                    }
+                } else false
+            }
     ) {
         // Layout Container based on mode
         when (state.layoutMode) {
@@ -149,6 +177,86 @@ fun MultiviewScreen(
                     onRetry = { viewModel.retryPaneStream(it) },
                     viewModel = viewModel
                 )
+            }
+        }
+
+        // Floating Screen Layout Switcher Bar (Quick 1, 2, 3, 4 Screens Switcher)
+        if (!state.isActionMenuOpen && !state.isChannelPickerOpen && !state.isSaveLayoutDialogOpen) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 16.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(24.dp),
+                    color = Color(0xEE141416),
+                    border = BorderStroke(1.dp, Color(0xFF38383A)),
+                    shadowElevation = 8.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "SCREENS:",
+                            color = TvTextSecondary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp,
+                            modifier = Modifier.padding(start = 6.dp, end = 2.dp)
+                        )
+
+                        MultiviewLayoutMode.values().forEach { mode ->
+                            val isSelected = state.layoutMode == mode
+                            val label = when (mode) {
+                                MultiviewLayoutMode.ONE_PANE -> "1 Screen"
+                                MultiviewLayoutMode.TWO_PANE -> "2 Screens"
+                                MultiviewLayoutMode.THREE_PANE -> "3 Screens"
+                                MultiviewLayoutMode.FOUR_PANE -> "4 Screens"
+                            }
+
+                            TvButton(
+                                text = label,
+                                onClick = { viewModel.changeLayoutMode(mode) },
+                                style = if (isSelected) TvButtonStyle.PRIMARY else TvButtonStyle.OUTLINE,
+                                modifier = Modifier.height(34.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(4.dp))
+
+                        TvButton(
+                            text = "Controls",
+                            onClick = { viewModel.toggleActionMenu() },
+                            style = TvButtonStyle.SECONDARY,
+                            modifier = Modifier.height(34.dp),
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.Tune,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+                        )
+
+                        TvButton(
+                            text = "Home",
+                            onClick = { viewModel.navigateTo(AppScreen.HOME) },
+                            style = TvButtonStyle.OUTLINE,
+                            modifier = Modifier.height(34.dp),
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.Home,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+                        )
+                    }
+                }
             }
         }
 
@@ -589,7 +697,7 @@ fun MultiviewActionMenu(
 
                 // Layout Mode Selector
                 Text(
-                    text = "LAYOUT MODE",
+                    text = "CHOOSE SCREENS (1, 2, 3, or 4)",
                     color = TvTextSecondary,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
@@ -603,8 +711,14 @@ fun MultiviewActionMenu(
                 ) {
                     MultiviewLayoutMode.values().forEach { mode ->
                         val isSelected = state.layoutMode == mode
+                        val label = when (mode) {
+                            MultiviewLayoutMode.ONE_PANE -> "1 Screen"
+                            MultiviewLayoutMode.TWO_PANE -> "2 Screens"
+                            MultiviewLayoutMode.THREE_PANE -> "3 Screens"
+                            MultiviewLayoutMode.FOUR_PANE -> "4 Screens"
+                        }
                         TvButton(
-                            text = "${mode.paneCount}P",
+                            text = label,
                             onClick = { viewModel.changeLayoutMode(mode) },
                             style = if (isSelected) TvButtonStyle.PRIMARY else TvButtonStyle.OUTLINE,
                             modifier = Modifier.weight(1f)
