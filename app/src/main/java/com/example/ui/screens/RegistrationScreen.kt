@@ -53,6 +53,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.TabloConnectionState
@@ -240,17 +241,18 @@ fun RegistrationScreen(
             Spacer(modifier = Modifier.height(18.dp))
 
             // Action Buttons
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 TvButton(
-                    text = if (isAuthenticating) "Signing In..." else "Sign In & Connect",
+                    text = if (isAuthenticating) "Signing In..." else "Sign In & Connect Tablo",
                     onClick = {
                         viewModel.loginWithTabloAccount(email, password)
                     },
                     style = TvButtonStyle.PRIMARY,
                     enabled = !isAuthenticating && email.isNotBlank() && password.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
                     leadingIcon = {
                         if (isAuthenticating) {
                             CircularProgressIndicator(
@@ -265,34 +267,41 @@ fun RegistrationScreen(
                     testTag = "btn_sign_in"
                 )
 
-                TvButton(
-                    text = "Manual IP",
-                    onClick = { viewModel.navigateTo(AppScreen.MANUAL_IP) },
-                    style = TvButtonStyle.OUTLINE,
-                    leadingIcon = {
-                        Icon(Icons.Default.Edit, contentDescription = null, tint = TvCyanPrimary)
-                    },
-                    testTag = "btn_manual_ip"
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    TvButton(
+                        text = "Manual IP",
+                        onClick = { viewModel.navigateTo(AppScreen.MANUAL_IP) },
+                        style = TvButtonStyle.OUTLINE,
+                        modifier = Modifier.weight(1f),
+                        leadingIcon = {
+                            Icon(Icons.Default.Edit, contentDescription = null, tint = TvCyanPrimary)
+                        },
+                        testTag = "btn_manual_ip"
+                    )
 
-                TvButton(
-                    text = if (isDiscovering) "Scanning..." else "Scan LAN",
-                    onClick = { viewModel.startDiscovery() },
-                    style = TvButtonStyle.SECONDARY,
-                    enabled = !isDiscovering,
-                    leadingIcon = {
-                        if (isDiscovering) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(14.dp),
-                                strokeWidth = 2.dp,
-                                color = TvTextPrimary
-                            )
-                        } else {
-                            Icon(Icons.Default.Refresh, contentDescription = null, tint = TvTextPrimary)
-                        }
-                    },
-                    testTag = "btn_scan_network"
-                )
+                    TvButton(
+                        text = if (isDiscovering) "Scanning..." else "Scan LAN",
+                        onClick = { viewModel.startDiscovery() },
+                        style = TvButtonStyle.SECONDARY,
+                        enabled = !isDiscovering,
+                        modifier = Modifier.weight(1f),
+                        leadingIcon = {
+                            if (isDiscovering) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(14.dp),
+                                    strokeWidth = 2.dp,
+                                    color = TvTextPrimary
+                                )
+                            } else {
+                                Icon(Icons.Default.Refresh, contentDescription = null, tint = TvTextPrimary)
+                            }
+                        },
+                        testTag = "btn_scan_network"
+                    )
+                }
             }
         }
 
@@ -406,7 +415,10 @@ fun RegistrationScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f).padding(end = 12.dp)
+                                ) {
                                     Box(
                                         modifier = Modifier
                                             .size(40.dp)
@@ -422,17 +434,21 @@ fun RegistrationScreen(
                                         )
                                     }
                                     Spacer(modifier = Modifier.width(14.dp))
-                                    Column {
+                                    Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = device.name,
                                             color = TvTextPrimary,
                                             fontSize = 15.sp,
-                                            fontWeight = FontWeight.Bold
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                         Text(
                                             text = "${device.host} • ${device.modelName} (${device.tunerCount} tuners)",
                                             color = TvTextSecondary,
-                                            fontSize = 12.sp
+                                            fontSize = 12.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
                                 }
@@ -441,7 +457,7 @@ fun RegistrationScreen(
                                     text = "Connect",
                                     onClick = { viewModel.registerDiscoveredDevice(device) },
                                     style = if (isFocused) TvButtonStyle.PRIMARY else TvButtonStyle.SECONDARY,
-                                    modifier = Modifier.height(36.dp)
+                                    modifier = Modifier.height(38.dp)
                                 )
                             }
                         }

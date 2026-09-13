@@ -100,92 +100,183 @@ fun ManualIpScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // IP Display Box
-        Box(
-            modifier = Modifier
-                .width(440.dp)
-                .height(64.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(TvSurfaceElevated),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = ipAddress.ifBlank { "e.g. 192.168.1.100" },
-                color = if (ipAddress.isNotBlank()) TvCyanPrimary else TvTextSecondary,
-                fontSize = 26.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = FontFamily.Monospace,
-                letterSpacing = 2.sp
-            )
-        }
-
-        if (errorMessage != null) {
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                text = errorMessage ?: "",
-                color = TvError,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium
-            )
-        }
-
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Remote-Friendly TV Keypad Grid
-        val keypadRows = listOf(
-            listOf("1", "2", "3"),
-            listOf("4", "5", "6"),
-            listOf("7", "8", "9"),
-            listOf(".", "0", "DEL")
-        )
-
-        Column(
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+        // 16:9 Landscape Two-Column Layout
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(40.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            keypadRows.forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    row.forEach { key ->
-                        TvFocusableCard(
-                            onClick = {
-                                viewModel.deviceRepository.clearError()
-                                when (key) {
-                                    "DEL" -> {
-                                        if (ipAddress.isNotEmpty()) {
-                                            ipAddress = ipAddress.dropLast(1)
+            // Left Column: IP Entry Box & Action Controls
+            Column(
+                modifier = Modifier.weight(1.1f),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "TARGET IP ADDRESS",
+                    color = TvCyanPrimary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // IP Display Box
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(68.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(TvSurfaceElevated),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Text(
+                        text = ipAddress.ifBlank { "192.168.1.xxx" },
+                        color = if (ipAddress.isNotBlank()) TvCyanPrimary else TvTextSecondary,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 2.sp,
+                        modifier = Modifier.padding(horizontal = 20.dp)
+                    )
+                }
+
+                if (errorMessage != null) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = errorMessage ?: "",
+                        color = TvError,
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Quick IP Helpers & Clear
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    TvButton(
+                        text = "192.168.1.",
+                        onClick = { ipAddress = "192.168.1." },
+                        style = TvButtonStyle.OUTLINE,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TvButton(
+                        text = "10.0.0.",
+                        onClick = { ipAddress = "10.0.0." },
+                        style = TvButtonStyle.OUTLINE,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TvButton(
+                        text = "Clear",
+                        onClick = { ipAddress = "" },
+                        style = TvButtonStyle.SECONDARY,
+                        modifier = Modifier.weight(0.8f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Connect Action Button
+                TvButton(
+                    text = if (isConnecting) "Connecting to Tablo..." else "Connect to Tablo",
+                    onClick = {
+                        viewModel.connectManualIp(ipAddress)
+                    },
+                    style = TvButtonStyle.PRIMARY,
+                    enabled = !isConnecting && ipAddress.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                    leadingIcon = {
+                        if (isConnecting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = TvBackground,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(Icons.Default.Check, contentDescription = null, tint = TvBackground)
+                        }
+                    },
+                    testTag = "btn_manual_connect"
+                )
+            }
+
+            // Right Column: Remote-Friendly TV Keypad Grid
+            Column(
+                modifier = Modifier.weight(0.9f),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "D-PAD NUMBER PAD",
+                    color = TvTextSecondary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                val keypadRows = listOf(
+                    listOf("1", "2", "3"),
+                    listOf("4", "5", "6"),
+                    listOf("7", "8", "9"),
+                    listOf(".", "0", "DEL")
+                )
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    keypadRows.forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            row.forEach { key ->
+                                TvFocusableCard(
+                                    onClick = {
+                                        viewModel.deviceRepository.clearError()
+                                        when (key) {
+                                            "DEL" -> {
+                                                if (ipAddress.isNotEmpty()) {
+                                                    ipAddress = ipAddress.dropLast(1)
+                                                }
+                                            }
+                                            else -> {
+                                                if (ipAddress.length < 15) {
+                                                    ipAddress += key
+                                                }
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .width(84.dp)
+                                        .height(48.dp),
+                                    testTag = "keypad_$key"
+                                ) { isFocused ->
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (key == "DEL") {
+                                            Icon(
+                                                Icons.Default.Backspace,
+                                                contentDescription = "Delete",
+                                                tint = if (isFocused) TvCyanPrimary else TvTextSecondary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        } else {
+                                            Text(
+                                                text = key,
+                                                color = if (isFocused) TvCyanPrimary else TvTextPrimary,
+                                                fontSize = 20.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
                                         }
                                     }
-                                    else -> {
-                                        if (ipAddress.length < 15) {
-                                            ipAddress += key
-                                        }
-                                    }
-                                }
-                            },
-                            modifier = Modifier
-                                .width(90.dp)
-                                .height(52.dp),
-                            testTag = "keypad_$key"
-                        ) { isFocused ->
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (key == "DEL") {
-                                    Icon(
-                                        Icons.Default.Backspace,
-                                        contentDescription = "Delete",
-                                        tint = if (isFocused) TvCyanPrimary else TvTextSecondary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                } else {
-                                    Text(
-                                        text = key,
-                                        color = if (isFocused) TvCyanPrimary else TvTextPrimary,
-                                        fontSize = 20.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
                                 }
                             }
                         }
@@ -193,30 +284,5 @@ fun ManualIpScreen(
                 }
             }
         }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // Connect Action Button
-        TvButton(
-            text = if (isConnecting) "Connecting..." else "Connect to Tablo",
-            onClick = {
-                viewModel.connectManualIp(ipAddress)
-            },
-            style = TvButtonStyle.PRIMARY,
-            enabled = !isConnecting && ipAddress.isNotBlank(),
-            modifier = Modifier.width(286.dp),
-            leadingIcon = {
-                if (isConnecting) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        color = TvBackground,
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Icon(Icons.Default.Check, contentDescription = null, tint = TvBackground)
-                }
-            },
-            testTag = "btn_manual_connect"
-        )
     }
 }

@@ -256,7 +256,7 @@ fun ChannelGuideRowItem(
             // Right: Actions
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TvButton(
-                    text = "Watch Fullscreen",
+                    text = "Watch",
                     onClick = onWatchFullscreen,
                     style = if (isFocused) TvButtonStyle.PRIMARY else TvButtonStyle.SECONDARY,
                     modifier = Modifier.height(40.dp),
@@ -264,7 +264,7 @@ fun ChannelGuideRowItem(
                 )
 
                 TvButton(
-                    text = "Add to Multiview",
+                    text = "+ Multiview",
                     onClick = onWatchMultiview,
                     style = TvButtonStyle.OUTLINE,
                     modifier = Modifier.height(40.dp)

@@ -31,6 +31,8 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.TvAmberAccent
@@ -53,28 +55,30 @@ fun TvButton(
     modifier: Modifier = Modifier,
     style: TvButtonStyle = TvButtonStyle.PRIMARY,
     enabled: Boolean = true,
+    minWidth: Dp = 64.dp,
+    minHeight: Dp = 44.dp,
     testTag: String = "tv_button",
     leadingIcon: (@Composable () -> Unit)? = null
 ) {
     var isFocused by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(targetValue = if (isFocused) 1.05f else 1.0f, label = "btn_scale")
+    val scale by animateFloatAsState(targetValue = if (isFocused) 1.04f else 1.0f, label = "btn_scale")
 
     val (bgColor, textColor, borderColor) = when (style) {
         TvButtonStyle.PRIMARY -> {
             if (isFocused) Triple(TvCyanPrimary, TvBackground, TvCyanPrimary)
-            else Triple(TvCyanPrimary.copy(alpha = 0.85f), TvBackground, Color.Transparent)
+            else Triple(TvCyanPrimary.copy(alpha = 0.88f), TvBackground, Color.Transparent)
         }
         TvButtonStyle.AMBER -> {
             if (isFocused) Triple(TvAmberAccent, TvBackground, TvAmberAccent)
-            else Triple(TvAmberAccent.copy(alpha = 0.85f), TvBackground, Color.Transparent)
+            else Triple(TvAmberAccent.copy(alpha = 0.88f), TvBackground, Color.Transparent)
         }
         TvButtonStyle.SECONDARY -> {
             if (isFocused) Triple(TvSurfaceElevated, TvCyanPrimary, TvCyanPrimary)
-            else Triple(TvSurfaceElevated.copy(alpha = 0.6f), TvTextPrimary, Color.Transparent)
+            else Triple(TvSurfaceElevated.copy(alpha = 0.7f), TvTextPrimary, Color.Transparent)
         }
         TvButtonStyle.OUTLINE -> {
-            if (isFocused) Triple(TvCyanPrimary.copy(alpha = 0.2f), TvCyanPrimary, TvCyanPrimary)
-            else Triple(Color.Transparent, TvTextPrimary, TvTextPrimary.copy(alpha = 0.3f))
+            if (isFocused) Triple(TvCyanPrimary.copy(alpha = 0.25f), TvCyanPrimary, TvCyanPrimary)
+            else Triple(Color.Transparent, TvTextPrimary, TvTextPrimary.copy(alpha = 0.35f))
         }
     }
 
@@ -107,23 +111,25 @@ fun TvButton(
                 indication = null,
                 onClick = onClick
             )
-            .defaultMinSize(minWidth = 120.dp, minHeight = 48.dp)
+            .defaultMinSize(minWidth = minWidth, minHeight = minHeight)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
             if (leadingIcon != null) {
-                Box(modifier = Modifier.padding(end = 8.dp)) {
+                Box(modifier = Modifier.padding(end = 6.dp)) {
                     leadingIcon()
                 }
             }
             Text(
                 text = text,
                 color = animatedText,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }

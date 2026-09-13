@@ -545,7 +545,7 @@ fun MultiviewActionMenu(
             color = TvSurface,
             border = BorderStroke(2.dp, TvCyanPrimary),
             modifier = Modifier
-                .width(520.dp)
+                .width(560.dp)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
@@ -557,7 +557,7 @@ fun MultiviewActionMenu(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "PANE ${state.activePaneIndex + 1} CONTROLS",
                             color = TvCyanPrimary,
@@ -611,7 +611,7 @@ fun MultiviewActionMenu(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // Layout Mode Selector
                 Text(
@@ -641,11 +641,11 @@ fun MultiviewActionMenu(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     TvButton(
-                        text = "Save Layout Preset",
+                        text = "Save Preset",
                         onClick = { viewModel.openSaveLayoutDialog() },
                         style = TvButtonStyle.SECONDARY,
                         modifier = Modifier.weight(1f),
@@ -659,14 +659,17 @@ fun MultiviewActionMenu(
                         modifier = Modifier.weight(1f),
                         leadingIcon = { Icon(Icons.Default.List, contentDescription = null, tint = TvCyanPrimary) }
                     )
-
-                    TvButton(
-                        text = "Exit to Home",
-                        onClick = { viewModel.navigateTo(AppScreen.HOME) },
-                        style = TvButtonStyle.OUTLINE,
-                        modifier = Modifier.weight(0.9f)
-                    )
                 }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                TvButton(
+                    text = "Exit to Home Screen",
+                    onClick = { viewModel.navigateTo(AppScreen.HOME) },
+                    style = TvButtonStyle.OUTLINE,
+                    modifier = Modifier.fillMaxWidth(),
+                    leadingIcon = { Icon(Icons.Default.Close, contentDescription = null, tint = TvTextSecondary) }
+                )
             }
         }
     }

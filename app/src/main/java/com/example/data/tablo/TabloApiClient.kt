@@ -15,6 +15,7 @@ import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 /**
@@ -206,6 +207,18 @@ class TabloApiClient(
                     if (item is JSONObject) {
                         val ch = parseChannelJson(item)
                         if (ch != null) channels.add(ch)
+                    } else if (item is String || item is Number) {
+                        val pathOrId = item.toString()
+                        val chId = pathOrId.substringAfterLast("/")
+                        channels.add(
+                            TabloChannel(
+                                id = chId,
+                                major = chId.toIntOrNull() ?: (i + 1),
+                                minor = 1,
+                                network = "Channel $chId",
+                                callSign = "CH $chId"
+                            )
+                        )
                     }
                 }
 
@@ -357,9 +370,9 @@ class TabloApiClient(
         try {
             val cleanChannelId = channelId.substringAfterLast("/")
             val path = "/guide/channels/$cleanChannelId/watch"
-            val url = "http://$host:$port$path"
+            val effectiveClientId = if (clientId.isNotBlank()) clientId else UUID.randomUUID().toString()
 
-            // Construct payload required by Tablo Gen 4 firmware
+            // Construct payload matching Tablo 4th Gen iOS client specification
             val payloadJson = JSONObject().apply {
                 put("bandwidth", JSONObject.NULL)
                 val extraObj = JSONObject().apply {
@@ -369,74 +382,162 @@ class TabloApiClient(
                     put("height", 1080)
                     put("deviceId", "00000000-0000-0000-0000-000000000000")
                     put("width", 1920)
-                    put("deviceModel", "FireTV")
-                    put("deviceMake", "Amazon")
-                    put("deviceOS", "FireOS")
+                    put("deviceModel", "iPhone10,1")
+                    put("deviceMake", "Apple")
+                    put("deviceOS", "iOS")
                 }
                 put("extra", extraObj)
-                put("device_id", clientId)
+                put("device_id", effectiveClientId)
                 put("platform", "ios")
             }
 
             val bodyString = payloadJson.toString()
+
+            // CRITICAL Tablo Gen 4 LighthouseTV routing rule:
+            // The request URL must contain "?lh" to route to the Gen 4 LighthouseTV service.
+            // The HMAC-MD5 signature is computed on the path WITHOUT "?lh".
             val (authHeader, dateHeader) = authService.makeDeviceAuth("POST", path, bodyString)
 
-            val request = Request.Builder()
-                .url(url)
-                .post(bodyString.toRequestBody(formMediaType))
-                .header("Authorization", authHeader)
-                .header("Date", dateHeader)
-                .header("Content-Type", "application/x-www-form-urlencoded")
-                .header("Accept", "*/*")
-                .header("Connection", "keep-alive")
-                .header("User-Agent", TabloAuthService.LOCAL_USER_AGENT)
-                .build()
+            var lastResponseCode = 0
+            var lastResponseBody = ""
 
-            httpClient.newCall(request).execute().use { response ->
-                val body = response.body?.string() ?: ""
+            // Strategy 1: Tablo Gen 4 with ?lh and application/x-www-form-urlencoded
+            try {
+                val primaryUrl = "http://$host:$port$path?lh"
+                val primaryRequest = Request.Builder()
+                    .url(primaryUrl)
+                    .post(bodyString.toRequestBody(formMediaType))
+                    .header("Authorization", authHeader)
+                    .header("Date", dateHeader)
+                    .header("Content-Type", "application/x-www-form-urlencoded")
+                    .header("Accept", "*/*")
+                    .header("Connection", "keep-alive")
+                    .header("User-Agent", TabloAuthService.LOCAL_USER_AGENT)
+                    .build()
 
-                if (response.code == 401) {
-                    return@withContext Result.failure(
-                        Exception("Device rejected watch request (401). Please sign in with your Tablo account to authorize streaming.")
-                    )
+                httpClient.newCall(primaryRequest).execute().use { response ->
+                    lastResponseCode = response.code
+                    lastResponseBody = response.body?.string() ?: ""
+                    if (response.isSuccessful) {
+                        return@withContext parseWatchResponse(lastResponseBody, cleanChannelId, host)
+                    }
                 }
+            } catch (e: Exception) {
+                lastResponseBody = e.message ?: "Primary request error"
+            }
 
-                if (!response.isSuccessful) {
-                    return@withContext Result.failure(
-                        Exception("Tablo watch request failed with HTTP ${response.code}: $body")
-                    )
-                }
+            // Strategy 2: Tablo Gen 4 with ?lh and application/json
+            if (lastResponseCode == 404 || lastResponseCode == 400 || lastResponseCode == 0) {
+                try {
+                    val jsonUrl = "http://$host:$port$path?lh"
+                    val jsonRequest = Request.Builder()
+                        .url(jsonUrl)
+                        .post(bodyString.toRequestBody(jsonMediaType))
+                        .header("Authorization", authHeader)
+                        .header("Date", dateHeader)
+                        .header("Content-Type", "application/json")
+                        .header("Accept", "application/json")
+                        .header("User-Agent", TabloAuthService.LOCAL_USER_AGENT)
+                        .build()
 
-                val json = JSONObject(body)
-                var playlistUrl = json.optString("playlist_url", "")
-                if (playlistUrl.isBlank()) {
-                    playlistUrl = json.optString("url", "")
-                }
+                    httpClient.newCall(jsonRequest).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val body = response.body?.string() ?: ""
+                            return@withContext parseWatchResponse(body, cleanChannelId, host)
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
 
-                val token = json.optString("token", null)
-                val expires = json.optString("expires", null)
+            // Strategy 3: Tablo without ?lh
+            if (lastResponseCode == 404 || lastResponseCode == 0) {
+                try {
+                    val directUrl = "http://$host:$port$path"
+                    val directRequest = Request.Builder()
+                        .url(directUrl)
+                        .post(bodyString.toRequestBody(formMediaType))
+                        .header("Authorization", authHeader)
+                        .header("Date", dateHeader)
+                        .header("Content-Type", "application/x-www-form-urlencoded")
+                        .header("User-Agent", TabloAuthService.LOCAL_USER_AGENT)
+                        .build()
 
-                if (playlistUrl.isBlank()) {
-                    return@withContext Result.failure(
-                        Exception("Tablo did not provide playlist_url in watch response: $body")
-                    )
-                }
+                    httpClient.newCall(directRequest).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val body = response.body?.string() ?: ""
+                            return@withContext parseWatchResponse(body, cleanChannelId, host)
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
 
-                // Resolve relative URLs to Tablo host
-                if (!playlistUrl.startsWith("http://") && !playlistUrl.startsWith("https://")) {
-                    val cleanPath = if (playlistUrl.startsWith("/")) playlistUrl else "/$playlistUrl"
-                    playlistUrl = "http://$host:80$cleanPath"
-                }
+            // Strategy 4: Legacy Tablo with blank POST
+            if (lastResponseCode == 404 || lastResponseCode == 0) {
+                try {
+                    val blankUrl = "http://$host:$port$path"
+                    val (blankAuth, blankDate) = authService.makeDeviceAuth("POST", path, "")
+                    val blankRequest = Request.Builder()
+                        .url(blankUrl)
+                        .post("".toRequestBody(formMediaType))
+                        .header("Authorization", blankAuth)
+                        .header("Date", blankDate)
+                        .header("User-Agent", TabloAuthService.LOCAL_USER_AGENT)
+                        .build()
 
-                Result.success(
-                    TabloStream(
-                        channelId = cleanChannelId,
-                        playlistUrl = playlistUrl,
-                        token = token,
-                        expires = expires
-                    )
+                    httpClient.newCall(blankRequest).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val body = response.body?.string() ?: ""
+                            return@withContext parseWatchResponse(body, cleanChannelId, host)
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+
+            if (lastResponseCode == 401) {
+                return@withContext Result.failure(
+                    Exception("Device rejected watch request (401). Please verify you are signed into your Tablo account.")
                 )
             }
+
+            Result.failure(
+                Exception("Tablo watch request failed with HTTP $lastResponseCode: $lastResponseBody")
+            )
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private fun parseWatchResponse(body: String, cleanChannelId: String, host: String): Result<TabloStream> {
+        return try {
+            val json = JSONObject(body)
+            var playlistUrl = json.optString("playlist_url", "")
+            if (playlistUrl.isBlank()) {
+                playlistUrl = json.optString("url", "")
+            }
+
+            val token = json.optString("token", null)
+            val expires = json.optString("expires", null)
+
+            if (playlistUrl.isBlank()) {
+                return Result.failure(
+                    Exception("Tablo did not provide playlist_url in watch response: $body")
+                )
+            }
+
+            // Resolve relative URLs to Tablo host
+            if (!playlistUrl.startsWith("http://") && !playlistUrl.startsWith("https://")) {
+                val cleanPath = if (playlistUrl.startsWith("/")) playlistUrl else "/$playlistUrl"
+                playlistUrl = "http://$host:8888$cleanPath"
+            }
+
+            Result.success(
+                TabloStream(
+                    channelId = cleanChannelId,
+                    playlistUrl = playlistUrl,
+                    token = token,
+                    expires = expires
+                )
+            )
         } catch (e: Exception) {
             Result.failure(e)
         }
