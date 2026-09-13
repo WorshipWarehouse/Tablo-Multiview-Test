@@ -48,6 +48,9 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
     val channelRepository = TabloChannelRepository(apiClient, database.cachedChannelDao())
     val savedLayoutRepository = SavedLayoutRepository(database.savedLayoutDao())
 
+    val isAuthenticating: StateFlow<Boolean> = deviceRepository.isAuthenticating
+    fun getSavedAuthEmail(): String? = preferences.getAuthEmail()
+
     val playerManager = MultiviewPlayerManager(application) { paneIndex, state, error ->
         updatePanePlaybackState(paneIndex, state, error)
     }
@@ -74,7 +77,12 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
                 _currentScreen.value = AppScreen.HOME
                 // Reconnect in background
                 deviceRepository.tryReconnect()
-                channelRepository.refreshChannels(savedDevice.host, savedDevice.port)
+                channelRepository.refreshChannels(
+                    savedDevice.host,
+                    savedDevice.port,
+                    preferences.getAccessToken(),
+                    preferences.getLighthouseToken()
+                )
             }
         }
     }
@@ -89,22 +97,50 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
 
     // --- Tablo Connection & Discovery ---
 
+    fun loginWithTabloAccount(email: String, pass: String, onComplete: (Boolean, String?) -> Unit = { _, _ -> }) {
+        viewModelScope.launch {
+            val res = deviceRepository.loginWithTabloAccount(email, pass)
+            if (res.isSuccess) {
+                val dev = deviceRepository.currentDevice.value
+                if (dev != null) {
+                    channelRepository.refreshChannels(
+                        dev.host,
+                        dev.port,
+                        preferences.getAccessToken(),
+                        preferences.getLighthouseToken()
+                    )
+                }
+                _currentScreen.value = AppScreen.HOME
+                onComplete(true, null)
+            } else {
+                val err = res.exceptionOrNull()?.message ?: "Login failed"
+                onComplete(false, err)
+            }
+        }
+    }
+
     fun startDiscovery() {
         viewModelScope.launch {
             deviceRepository.discoverDevices()
         }
     }
 
-    fun connectManualIp(ip: String, onComplete: (Boolean) -> Unit = {}) {
+    fun connectManualIp(ip: String, onComplete: (Boolean, String?) -> Unit = { _, _ -> }) {
         viewModelScope.launch {
             val result = deviceRepository.connectManualIp(ip)
             if (result.isSuccess) {
                 val dev = result.getOrThrow()
-                channelRepository.refreshChannels(dev.host, dev.port)
+                channelRepository.refreshChannels(
+                    dev.host,
+                    dev.port,
+                    preferences.getAccessToken(),
+                    preferences.getLighthouseToken()
+                )
                 _currentScreen.value = AppScreen.HOME
-                onComplete(true)
+                onComplete(true, null)
             } else {
-                onComplete(false)
+                val err = result.exceptionOrNull()?.message ?: "Could not connect to $ip"
+                onComplete(false, err)
             }
         }
     }
@@ -112,7 +148,12 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
     fun registerDiscoveredDevice(device: TabloDevice) {
         viewModelScope.launch {
             deviceRepository.registerDevice(device)
-            channelRepository.refreshChannels(device.host, device.port)
+            channelRepository.refreshChannels(
+                device.host,
+                device.port,
+                preferences.getAccessToken(),
+                preferences.getLighthouseToken()
+            )
             _currentScreen.value = AppScreen.HOME
         }
     }
@@ -123,7 +164,12 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
             if (success) {
                 val dev = deviceRepository.currentDevice.value
                 if (dev != null) {
-                    channelRepository.refreshChannels(dev.host, dev.port)
+                    channelRepository.refreshChannels(
+                        dev.host,
+                        dev.port,
+                        preferences.getAccessToken(),
+                        preferences.getLighthouseToken()
+                    )
                 }
             }
         }
@@ -132,7 +178,12 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
     fun refreshGuideChannels() {
         val dev = deviceRepository.currentDevice.value ?: return
         viewModelScope.launch {
-            channelRepository.refreshChannels(dev.host, dev.port)
+            channelRepository.refreshChannels(
+                dev.host,
+                dev.port,
+                preferences.getAccessToken(),
+                preferences.getLighthouseToken()
+            )
         }
     }
 
@@ -329,8 +380,8 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
         updatePanePlaybackState(paneIndex, StreamPlaybackState.LOADING, null)
 
         streamJobs[paneIndex] = viewModelScope.launch {
-            // Fetch live stream URL from Tablo API
-            val result = apiClient.watchChannel(device.host, channel.id, device.port)
+            // Fetch live stream URL from Tablo API with HMAC signing and client session
+            val result = apiClient.watchChannel(device.host, channel.id, preferences.getClientId(), device.port)
             if (result.isSuccess) {
                 val stream = result.getOrThrow()
                 playerManager.playPaneStream(paneIndex, stream.playlistUrl, channel.id, stream.token)

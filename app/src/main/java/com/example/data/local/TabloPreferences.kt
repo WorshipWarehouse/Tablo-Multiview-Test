@@ -28,6 +28,60 @@ class TabloPreferences(context: Context) {
         private const val KEY_LAST_LAYOUT_MODE = "last_layout_mode"
         private const val KEY_LAST_PANE_CHANNELS = "last_pane_channels"
         private const val KEY_LAST_ACTIVE_PANE = "last_active_pane"
+
+        private const val KEY_AUTH_EMAIL = "auth_email"
+        private const val KEY_AUTH_PASSWORD = "auth_password"
+        private const val KEY_ACCESS_TOKEN = "access_token"
+        private const val KEY_LIGHTHOUSE_TOKEN = "lighthouse_token"
+        private const val KEY_PROFILE_ID = "profile_id"
+        private const val KEY_CLIENT_ID = "client_id"
+    }
+
+    fun getClientId(): String {
+        var cid = prefs.getString(KEY_CLIENT_ID, null)
+        if (cid.isNullOrBlank()) {
+            cid = java.util.UUID.randomUUID().toString()
+            prefs.edit().putString(KEY_CLIENT_ID, cid).apply()
+        }
+        return cid
+    }
+
+    fun saveAuthSession(
+        email: String,
+        password: String,
+        accessToken: String,
+        profileId: String,
+        lighthouseToken: String? = null
+    ) {
+        val editor = prefs.edit()
+            .putString(KEY_AUTH_EMAIL, email)
+            .putString(KEY_AUTH_PASSWORD, password)
+            .putString(KEY_ACCESS_TOKEN, accessToken)
+            .putString(KEY_PROFILE_ID, profileId)
+        if (!lighthouseToken.isNullOrBlank()) {
+            editor.putString(KEY_LIGHTHOUSE_TOKEN, lighthouseToken)
+        }
+        editor.apply()
+    }
+
+    fun saveLighthouseToken(token: String) {
+        prefs.edit().putString(KEY_LIGHTHOUSE_TOKEN, token).apply()
+    }
+
+    fun getAuthEmail(): String? = prefs.getString(KEY_AUTH_EMAIL, null)
+    fun getAuthPassword(): String? = prefs.getString(KEY_AUTH_PASSWORD, null)
+    fun getAccessToken(): String? = prefs.getString(KEY_ACCESS_TOKEN, null)
+    fun getLighthouseToken(): String? = prefs.getString(KEY_LIGHTHOUSE_TOKEN, null)
+    fun getProfileId(): String? = prefs.getString(KEY_PROFILE_ID, null)
+
+    fun clearAuthSession() {
+        prefs.edit()
+            .remove(KEY_AUTH_EMAIL)
+            .remove(KEY_AUTH_PASSWORD)
+            .remove(KEY_ACCESS_TOKEN)
+            .remove(KEY_LIGHTHOUSE_TOKEN)
+            .remove(KEY_PROFILE_ID)
+            .apply()
     }
 
     fun saveRegisteredDevice(device: TabloDevice) {

@@ -38,45 +38,49 @@ class TabloChannelRepository(
     }
 
     /**
-     * Refresh channels from physical Tablo device over LAN.
+     * Refresh channels from Tablo Cloud guide or local physical Tablo device.
      */
-    suspend fun refreshChannels(host: String, port: Int = 8885): Result<List<TabloChannel>> =
-        withContext(Dispatchers.IO) {
-            _isLoading.value = true
-            try {
-                val result = apiClient.getChannels(host, port)
-                if (result.isSuccess) {
-                    val list = result.getOrThrow()
-                    if (list.isNotEmpty()) {
-                        _channels.value = list
-                        // Persist to Room cache
-                        val entities = list.map { CachedChannelEntity.fromDomain(it) }
-                        channelDao.clearAll()
-                        channelDao.insertChannels(entities)
-                    }
-                    Result.success(list)
-                } else {
-                    // Fallback to local Room cache
-                    val fallback = channelDao.getAllChannelsList().map { it.toDomain() }
-                    if (fallback.isNotEmpty()) {
-                        _channels.value = fallback
-                        Result.success(fallback)
-                    } else {
-                        result
-                    }
+    suspend fun refreshChannels(
+        host: String,
+        port: Int = 8885,
+        accessToken: String? = null,
+        lighthouseToken: String? = null
+    ): Result<List<TabloChannel>> = withContext(Dispatchers.IO) {
+        _isLoading.value = true
+        try {
+            val result = apiClient.getChannels(host, port, accessToken, lighthouseToken)
+            if (result.isSuccess) {
+                val list = result.getOrThrow()
+                if (list.isNotEmpty()) {
+                    _channels.value = list
+                    // Persist to Room cache
+                    val entities = list.map { CachedChannelEntity.fromDomain(it) }
+                    channelDao.clearAll()
+                    channelDao.insertChannels(entities)
                 }
-            } catch (e: Exception) {
+                Result.success(list)
+            } else {
+                // Fallback to local Room cache
                 val fallback = channelDao.getAllChannelsList().map { it.toDomain() }
                 if (fallback.isNotEmpty()) {
                     _channels.value = fallback
                     Result.success(fallback)
                 } else {
-                    Result.failure(e)
+                    result
                 }
-            } finally {
-                _isLoading.value = false
             }
+        } catch (e: Exception) {
+            val fallback = channelDao.getAllChannelsList().map { it.toDomain() }
+            if (fallback.isNotEmpty()) {
+                _channels.value = fallback
+                Result.success(fallback)
+            } else {
+                Result.failure(e)
+            }
+        } finally {
+            _isLoading.value = false
         }
+    }
 
     /**
      * Fetch current program airing for a channel.

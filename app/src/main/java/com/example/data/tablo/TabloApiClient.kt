@@ -18,40 +18,87 @@ import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 
 /**
- * Local REST API client communicating directly with Tablo Gen 4 DVR over LAN.
- * Reference: https://jessedp.github.io/tablo-api-docs/#tablo-api-introduction
+ * Local REST API client communicating directly with Tablo Gen 4 DVR over LAN,
+ * secured using HMAC-MD5 request signing.
  */
-class TabloApiClient {
+class TabloApiClient(
+    val authService: TabloAuthService = TabloAuthService()
+) {
 
     private val httpClient: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(4, TimeUnit.SECONDS)
-        .readTimeout(8, TimeUnit.SECONDS)
-        .writeTimeout(4, TimeUnit.SECONDS)
+        .connectTimeout(6, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
+        .writeTimeout(6, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .build()
 
     private val fastHttpClient: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(600, TimeUnit.MILLISECONDS)
-        .readTimeout(1000, TimeUnit.MILLISECONDS)
+        .connectTimeout(1200, TimeUnit.MILLISECONDS)
+        .readTimeout(1500, TimeUnit.MILLISECONDS)
         .build()
 
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
+    private val formMediaType = "application/x-www-form-urlencoded".toMediaType()
 
     /**
-     * Query /server/info to validate that a device is a physical Tablo and retrieve its specs.
+     * Unauthenticated ping to verify physical reachability and extract device SID.
+     * GET http://$host:$port/ping
+     */
+    suspend fun ping(host: String, port: Int = 8885): Result<String> =
+        withContext(Dispatchers.IO) {
+            try {
+                val url = "http://$host:$port/ping"
+                val request = Request.Builder()
+                    .url(url)
+                    .get()
+                    .header("User-Agent", TabloAuthService.LOCAL_USER_AGENT)
+                    .build()
+
+                fastHttpClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        return@withContext Result.failure(
+                            Exception("Ping failed with HTTP ${response.code}")
+                        )
+                    }
+                    val body = response.body?.string() ?: ""
+                    val json = JSONObject(body)
+                    val sid = json.optString("sid", "")
+                    Result.success(sid)
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+
+    /**
+     * Query /server/info with HMAC-MD5 signing to retrieve device specifications.
      */
     suspend fun getServerInfo(host: String, port: Int = 8885, fast: Boolean = false): Result<TabloDevice> =
         withContext(Dispatchers.IO) {
             try {
                 val client = if (fast) fastHttpClient else httpClient
-                val url = "http://$host:$port/server/info"
+                val path = "/server/info"
+                val url = "http://$host:$port$path"
+
+                val (authHeader, dateHeader) = authService.makeDeviceAuth("GET", path)
+
                 val request = Request.Builder()
                     .url(url)
                     .get()
-                    .header("Accept", "application/json")
+                    .header("Authorization", authHeader)
+                    .header("Date", dateHeader)
+                    .header("Accept", "*/*")
+                    .header("Connection", "keep-alive")
+                    .header("User-Agent", TabloAuthService.LOCAL_USER_AGENT)
                     .build()
 
                 client.newCall(request).execute().use { response ->
+                    if (response.code == 401) {
+                        return@withContext Result.failure(
+                            Exception("Tablo device rejected request (401 Unauthorized). Account login is required for Tablo Gen 4.")
+                        )
+                    }
+
                     if (!response.isSuccessful) {
                         return@withContext Result.failure(
                             Exception("HTTP error ${response.code}: ${response.message}")
@@ -63,13 +110,11 @@ class TabloApiClient {
 
                     val json = JSONObject(body)
 
-                    // Tablo /server/info fields
                     val serverId = json.optString("server_id", "")
                     val name = json.optString("name", "Tablo Gen 4").ifBlank { "Tablo Gen 4" }
                     val timezone = json.optString("timezone", "")
                     val version = json.optString("version", "")
 
-                    // Model can be an object or string
                     var modelName = "Tablo Gen 4"
                     var tunerCount = 2
                     var isWifi = true
@@ -111,126 +156,63 @@ class TabloApiClient {
         }
 
     /**
-     * Retrieve all available live TV channels.
-     * Tablo returns an array of paths from /guide/channels, then channel details.
+     * Retrieve channel guide. If cloud tokens are provided, queries Tablo Cloud Guide
+     * (the primary guide source on Gen 4). Falls back to local device signed guide query.
      */
-    suspend fun getChannels(host: String, port: Int = 8885): Result<List<TabloChannel>> =
-        withContext(Dispatchers.IO) {
-            try {
-                val listUrl = "http://$host:$port/guide/channels"
-                val listRequest = Request.Builder()
-                    .url(listUrl)
-                    .get()
-                    .header("Accept", "application/json")
-                    .build()
+    suspend fun getChannels(
+        host: String,
+        port: Int = 8885,
+        accessToken: String? = null,
+        lighthouseToken: String? = null
+    ): Result<List<TabloChannel>> = withContext(Dispatchers.IO) {
+        // Priority 1: Cloud Guide if tokens available
+        if (!accessToken.isNullOrBlank() && !lighthouseToken.isNullOrBlank()) {
+            val cloudRes = authService.getCloudChannels(accessToken, lighthouseToken)
+            if (cloudRes.isSuccess) {
+                return@withContext cloudRes
+            }
+        }
 
-                val paths = mutableListOf<String>()
-                httpClient.newCall(listRequest).execute().use { response ->
-                    if (!response.isSuccessful) {
-                        return@withContext Result.failure(
-                            Exception("Failed to retrieve channels: HTTP ${response.code}")
-                        )
-                    }
+        // Priority 2: Direct local device query with HMAC signature
+        try {
+            val path = "/guide/channels"
+            val url = "http://$host:$port$path"
+            val (authHeader, dateHeader) = authService.makeDeviceAuth("GET", path)
 
-                    val body = response.body?.string()
-                        ?: return@withContext Result.failure(Exception("Empty channels response"))
+            val listRequest = Request.Builder()
+                .url(url)
+                .get()
+                .header("Authorization", authHeader)
+                .header("Date", dateHeader)
+                .header("Accept", "application/json")
+                .header("User-Agent", TabloAuthService.LOCAL_USER_AGENT)
+                .build()
 
-                    val jsonArray = JSONArray(body)
-                    for (i in 0 until jsonArray.length()) {
-                        val item = jsonArray.get(i)
-                        if (item is String) {
-                            paths.add(item)
-                        } else if (item is JSONObject) {
-                            // In some firmware versions, array of objects is returned directly
-                            val ch = parseChannelJson(item)
-                            if (ch != null) {
-                                return@withContext Result.success(
-                                    (0 until jsonArray.length()).mapNotNull { idx ->
-                                        parseChannelJson(jsonArray.getJSONObject(idx))
-                                    }.sortedWith(compareBy({ it.major }, { it.minor }))
-                                )
-                            }
-                        }
-                    }
-                }
-
-                if (paths.isEmpty()) {
-                    return@withContext Result.success(emptyList())
-                }
-
-                // Batch fetch channels via POST /batch
-                val batchChannels = fetchChannelsBatch(host, port, paths)
-                if (batchChannels.isNotEmpty()) {
-                    return@withContext Result.success(
-                        batchChannels.sortedWith(compareBy({ it.major }, { it.minor }))
+            httpClient.newCall(listRequest).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(
+                        Exception("Failed to retrieve channels: HTTP ${response.code}")
                     )
                 }
 
-                // Fallback to fetching individually if batch is not supported
+                val body = response.body?.string()
+                    ?: return@withContext Result.failure(Exception("Empty channels response"))
+
+                val jsonArray = JSONArray(body)
                 val channels = mutableListOf<TabloChannel>()
-                for (path in paths) {
-                    val ch = fetchChannelByPath(host, port, path)
-                    if (ch != null) {
-                        channels.add(ch)
+
+                for (i in 0 until jsonArray.length()) {
+                    val item = jsonArray.get(i)
+                    if (item is JSONObject) {
+                        val ch = parseChannelJson(item)
+                        if (ch != null) channels.add(ch)
                     }
                 }
 
                 Result.success(channels.sortedWith(compareBy({ it.major }, { it.minor })))
-            } catch (e: Exception) {
-                Result.failure(e)
             }
-        }
-
-    /**
-     * Attempt batch fetch for multiple channel paths using POST /batch.
-     */
-    private fun fetchChannelsBatch(host: String, port: Int, paths: List<String>): List<TabloChannel> {
-        val channels = mutableListOf<TabloChannel>()
-        try {
-            val url = "http://$host:$port/batch"
-            val requestBodyArray = JSONArray()
-            paths.forEach { requestBodyArray.put(it) }
-
-            val request = Request.Builder()
-                .url(url)
-                .post(requestBodyArray.toString().toRequestBody(jsonMediaType))
-                .header("Accept", "application/json")
-                .build()
-
-            httpClient.newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    val body = response.body?.string() ?: return emptyList()
-                    val batchObj = JSONObject(body)
-                    val keys = batchObj.keys()
-                    while (keys.hasNext()) {
-                        val pathKey = keys.next()
-                        val channelJson = batchObj.optJSONObject(pathKey)
-                        if (channelJson != null) {
-                            val parsed = parseChannelJson(channelJson, pathKey)
-                            if (parsed != null) {
-                                channels.add(parsed)
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (_: Exception) {}
-        return channels
-    }
-
-    private fun fetchChannelByPath(host: String, port: Int, path: String): TabloChannel? {
-        return try {
-            val cleanPath = if (path.startsWith("/")) path else "/$path"
-            val url = "http://$host:$port$cleanPath"
-            val request = Request.Builder().url(url).get().build()
-            httpClient.newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    val body = response.body?.string() ?: return null
-                    parseChannelJson(JSONObject(body), cleanPath)
-                } else null
-            }
-        } catch (_: Exception) {
-            null
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 
@@ -238,6 +220,9 @@ class TabloApiClient {
         try {
             val channelObj = if (json.has("channel")) json.getJSONObject("channel") else json
             val objectId = json.optString("object_id", "")
+                .ifBlank {
+                    json.optString("identifier", "")
+                }
                 .ifBlank {
                     fallbackPath.substringAfterLast("/").ifBlank { "0" }
                 }
@@ -250,7 +235,7 @@ class TabloApiClient {
             val callSign = channelObj.optString("call_sign", "").ifBlank {
                 channelObj.optString("callSign", "")
             }
-            val resolution = channelObj.optString("resolution", null)
+            val resolution = channelObj.optString("resolution", if (major > 0) "1080i" else "720p")
             val audio = channelObj.optString("audio", null)
             val logoUrl = channelObj.optString("logo_url", null)
 
@@ -276,8 +261,18 @@ class TabloApiClient {
     suspend fun getChannelAirings(host: String, channelId: String, port: Int = 8885): Result<List<TabloAiring>> =
         withContext(Dispatchers.IO) {
             try {
-                val url = "http://$host:$port/guide/channels/$channelId/airings"
-                val request = Request.Builder().url(url).get().build()
+                val cleanId = channelId.substringAfterLast("/")
+                val path = "/guide/channels/$cleanId/airings"
+                val url = "http://$host:$port$path"
+                val (authHeader, dateHeader) = authService.makeDeviceAuth("GET", path)
+
+                val request = Request.Builder()
+                    .url(url)
+                    .get()
+                    .header("Authorization", authHeader)
+                    .header("Date", dateHeader)
+                    .header("User-Agent", TabloAuthService.LOCAL_USER_AGENT)
+                    .build()
 
                 val airings = mutableListOf<TabloAiring>()
                 httpClient.newCall(request).execute().use { response ->
@@ -289,12 +284,8 @@ class TabloApiClient {
                     for (i in 0 until minOf(array.length(), 10)) {
                         val item = array.get(i)
                         if (item is JSONObject) {
-                            val airing = parseAiringJson(item, channelId)
+                            val airing = parseAiringJson(item, cleanId)
                             if (airing != null) airings.add(airing)
-                        } else if (item is String) {
-                            // fetch single airing
-                            val singleAiring = fetchAiringByPath(host, port, item, channelId)
-                            if (singleAiring != null) airings.add(singleAiring)
                         }
                     }
                 }
@@ -303,21 +294,6 @@ class TabloApiClient {
                 Result.failure(e)
             }
         }
-
-    private fun fetchAiringByPath(host: String, port: Int, path: String, channelId: String): TabloAiring? {
-        return try {
-            val cleanPath = if (path.startsWith("/")) path else "/$path"
-            val request = Request.Builder().url("http://$host:$port$cleanPath").get().build()
-            httpClient.newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    val body = response.body?.string() ?: return null
-                    parseAiringJson(JSONObject(body), channelId)
-                } else null
-            }
-        } catch (_: Exception) {
-            null
-        }
-    }
 
     private fun parseAiringJson(json: JSONObject, channelId: String): TabloAiring? {
         return try {
@@ -368,79 +344,126 @@ class TabloApiClient {
     }
 
     /**
-     * Start watching a live channel.
-     * POST /guide/channels/{channel_id}/watch
+     * Start watching a live channel on Tablo Gen 4 over LAN.
+     * Uses HMAC-MD5 signing and required device payload.
      * Returns TabloStream with the HLS playlist_url.
      */
-    suspend fun watchChannel(host: String, channelId: String, port: Int = 8885): Result<TabloStream> =
+    suspend fun watchChannel(
+        host: String,
+        channelId: String,
+        clientId: String,
+        port: Int = 8885
+    ): Result<TabloStream> = withContext(Dispatchers.IO) {
+        try {
+            val cleanChannelId = channelId.substringAfterLast("/")
+            val path = "/guide/channels/$cleanChannelId/watch"
+            val url = "http://$host:$port$path"
+
+            // Construct payload required by Tablo Gen 4 firmware
+            val payloadJson = JSONObject().apply {
+                put("bandwidth", JSONObject.NULL)
+                val extraObj = JSONObject().apply {
+                    put("limitedAdTracking", 1)
+                    put("deviceOSVersion", "16.6")
+                    put("lang", "en_US")
+                    put("height", 1080)
+                    put("deviceId", "00000000-0000-0000-0000-000000000000")
+                    put("width", 1920)
+                    put("deviceModel", "FireTV")
+                    put("deviceMake", "Amazon")
+                    put("deviceOS", "FireOS")
+                }
+                put("extra", extraObj)
+                put("device_id", clientId)
+                put("platform", "ios")
+            }
+
+            val bodyString = payloadJson.toString()
+            val (authHeader, dateHeader) = authService.makeDeviceAuth("POST", path, bodyString)
+
+            val request = Request.Builder()
+                .url(url)
+                .post(bodyString.toRequestBody(formMediaType))
+                .header("Authorization", authHeader)
+                .header("Date", dateHeader)
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .header("Accept", "*/*")
+                .header("Connection", "keep-alive")
+                .header("User-Agent", TabloAuthService.LOCAL_USER_AGENT)
+                .build()
+
+            httpClient.newCall(request).execute().use { response ->
+                val body = response.body?.string() ?: ""
+
+                if (response.code == 401) {
+                    return@withContext Result.failure(
+                        Exception("Device rejected watch request (401). Please sign in with your Tablo account to authorize streaming.")
+                    )
+                }
+
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(
+                        Exception("Tablo watch request failed with HTTP ${response.code}: $body")
+                    )
+                }
+
+                val json = JSONObject(body)
+                var playlistUrl = json.optString("playlist_url", "")
+                if (playlistUrl.isBlank()) {
+                    playlistUrl = json.optString("url", "")
+                }
+
+                val token = json.optString("token", null)
+                val expires = json.optString("expires", null)
+
+                if (playlistUrl.isBlank()) {
+                    return@withContext Result.failure(
+                        Exception("Tablo did not provide playlist_url in watch response: $body")
+                    )
+                }
+
+                // Resolve relative URLs to Tablo host
+                if (!playlistUrl.startsWith("http://") && !playlistUrl.startsWith("https://")) {
+                    val cleanPath = if (playlistUrl.startsWith("/")) playlistUrl else "/$playlistUrl"
+                    playlistUrl = "http://$host:80$cleanPath"
+                }
+
+                Result.success(
+                    TabloStream(
+                        channelId = cleanChannelId,
+                        playlistUrl = playlistUrl,
+                        token = token,
+                        expires = expires
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Stop watching and release the tuner on the Tablo Gen 4 DVR.
+     */
+    suspend fun stopWatching(host: String, token: String?, port: Int = 8885) =
         withContext(Dispatchers.IO) {
+            if (token.isNullOrBlank()) return@withContext
             try {
-                val cleanChannelId = channelId.substringAfterLast("/")
-                val url = "http://$host:$port/guide/channels/$cleanChannelId/watch"
-                val emptyBody = "{}".toRequestBody(jsonMediaType)
+                val path = "/stream/stop"
+                val url = "http://$host:$port$path"
+                val bodyString = JSONObject().put("token", token).toString()
+                val (authHeader, dateHeader) = authService.makeDeviceAuth("POST", path, bodyString)
 
                 val request = Request.Builder()
                     .url(url)
-                    .post(emptyBody)
-                    .header("Accept", "application/json")
+                    .post(bodyString.toRequestBody(jsonMediaType))
+                    .header("Authorization", authHeader)
+                    .header("Date", dateHeader)
+                    .header("Content-Type", "application/json")
+                    .header("User-Agent", TabloAuthService.LOCAL_USER_AGENT)
                     .build()
 
-                httpClient.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) {
-                        return@withContext Result.failure(
-                            Exception("Tablo watch request failed with HTTP ${response.code}: ${response.message}")
-                        )
-                    }
-
-                    val body = response.body?.string()
-                        ?: return@withContext Result.failure(Exception("Empty watch response"))
-
-                    val json = JSONObject(body)
-                    var playlistUrl = json.optString("playlist_url", "")
-                    val token = json.optString("token", null)
-                    val expires = json.optString("expires", null)
-
-                    if (playlistUrl.isBlank()) {
-                        // Check if URL is under "stream" or "url"
-                        playlistUrl = json.optString("url", "")
-                    }
-
-                    if (playlistUrl.isBlank()) {
-                        return@withContext Result.failure(
-                            Exception("Tablo did not provide a valid playlist_url in watch response: $body")
-                        )
-                    }
-
-                    // Resolve relative URLs
-                    if (!playlistUrl.startsWith("http://") && !playlistUrl.startsWith("https://")) {
-                        val cleanPath = if (playlistUrl.startsWith("/")) playlistUrl else "/$playlistUrl"
-                        playlistUrl = "http://$host:80$cleanPath"
-                    }
-
-                    Result.success(
-                        TabloStream(
-                            channelId = cleanChannelId,
-                            playlistUrl = playlistUrl,
-                            token = token,
-                            expires = expires
-                        )
-                    )
-                }
-            } catch (e: Exception) {
-                Result.failure(e)
-            }
+                httpClient.newCall(request).execute().close()
+            } catch (_: Exception) {}
         }
-
-    /**
-     * Send keepalive or stop watch signal to free hardware tuners.
-     */
-    suspend fun stopWatching(host: String, token: String?, port: Int = 8885) = withContext(Dispatchers.IO) {
-        if (token.isNullOrBlank()) return@withContext
-        try {
-            val url = "http://$host:$port/stream/stop"
-            val body = JSONObject().put("token", token).toString().toRequestBody(jsonMediaType)
-            val request = Request.Builder().url(url).post(body).build()
-            httpClient.newCall(request).execute().close()
-        } catch (_: Exception) {}
-    }
 }

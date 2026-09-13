@@ -230,9 +230,9 @@ fun SettingsScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    DiagnosticRow(label = "Communication", value = "Direct LAN Only")
-                    DiagnosticRow(label = "Cloud Backend", value = "None (Self-Contained)")
-                    DiagnosticRow(label = "Account / Login", value = "None Required")
+                    DiagnosticRow(label = "Communication", value = "Direct LAN Stream (Port 8885)")
+                    DiagnosticRow(label = "Tablo Account", value = viewModel.getSavedAuthEmail() ?: "Direct LAN Mode")
+                    DiagnosticRow(label = "Custom Backend", value = "None (Self-Contained)")
                     DiagnosticRow(label = "Video Engine", value = "Media3 ExoPlayer 1.5.1")
                     DiagnosticRow(label = "Hardware Decoder", value = "Active (Fire TV)")
                     DiagnosticRow(label = "Local Storage", value = "Room SQLite Database")
@@ -240,7 +240,7 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Text(
-                        text = "This application strictly operates on your local network. No video telemetry, account credentials, or advertising trackers are transmitted to external servers.",
+                        text = "Video streams flow directly from your Tablo Gen 4 over your local Wi-Fi / Ethernet connection. No video telemetry or advertising trackers are used.",
                         color = TvTextSecondary,
                         fontSize = 12.sp,
                         lineHeight = 16.sp
