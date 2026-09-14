@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -80,6 +81,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -88,6 +90,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
+import com.example.R
 import com.example.model.MultiviewLayoutMode
 import com.example.model.PaneState
 import com.example.model.StreamDiagnostics
@@ -255,6 +258,23 @@ fun MultiviewScreen(
             }
         }
 
+        // Top Command Bar Header Overlay (Animated with HUD)
+        AnimatedVisibility(
+            visible = showHud && !state.isActionMenuOpen && !state.isChannelPickerOpen && !state.isSaveLayoutDialogOpen && state.showQualityMenuForPane == null,
+            enter = fadeIn() + slideInVertically(initialOffsetY = { -it }),
+            exit = fadeOut() + slideOutVertically(targetOffsetY = { -it }),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .padding(start = 24.dp, end = 24.dp, top = 16.dp)
+        ) {
+            MultiviewTopHeaderBar(
+                state = state,
+                viewModel = viewModel,
+                onPingHud = { pingHud() }
+            )
+        }
+
         // Leanback Media Controls Overlay: Bottom-third anchored carousel & actions
         AnimatedVisibility(
             visible = showHud && !state.isActionMenuOpen && !state.isChannelPickerOpen && !state.isSaveLayoutDialogOpen && state.showQualityMenuForPane == null,
@@ -354,6 +374,124 @@ fun MultiviewScreen(
     }
 }
 
+// --- Multiview Top Header Bar ---
+
+@Composable
+fun MultiviewTopHeaderBar(
+    state: com.example.model.MultiviewUiState,
+    viewModel: TabloAppViewModel,
+    onPingHud: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = Color(0xF210131A),
+        border = BorderStroke(1.dp, Color(0xFF252A36)),
+        shadowElevation = 10.dp,
+        modifier = Modifier.fillMaxWidth().widthIn(max = 1100.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+        ) {
+            // Brand Logo & Title
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .border(1.dp, TvCyanPrimary.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                        .background(Color.Black),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_app_brand_logo),
+                        contentDescription = "Tablo Multiview Logo",
+                        modifier = Modifier.size(30.dp).clip(RoundedCornerShape(5.dp))
+                    )
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = "TABLO",
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp
+                )
+                Text(
+                    text = " MULTIVIEW",
+                    color = TvCyanPrimary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.8.sp
+                )
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                // Mode Badge
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color(0xFF1E2330))
+                        .border(1.dp, Color(0xFF32394A), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                ) {
+                    val modeLabel = when (state.layoutMode) {
+                        MultiviewLayoutMode.ONE_PANE -> "1 SCREEN (SOLO)"
+                        MultiviewLayoutMode.TWO_PANE -> "2 SCREENS (SPLIT)"
+                        MultiviewLayoutMode.THREE_PANE -> "3 SCREENS (GAMEDAY FOCUS)"
+                        MultiviewLayoutMode.FOUR_PANE -> "4 SCREENS (QUAD VIEW)"
+                    }
+                    Text(
+                        text = modeLabel,
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+
+            // Quick Nav Shortcuts
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                TvButton(
+                    text = "Guide",
+                    onClick = { viewModel.navigateTo(AppScreen.CHANNEL_GUIDE) },
+                    style = TvButtonStyle.SECONDARY,
+                    modifier = Modifier.height(32.dp),
+                    leadingIcon = { Icon(Icons.Default.List, contentDescription = "Guide", tint = Color.White, modifier = Modifier.size(16.dp)) },
+                    testTag = "btn_header_guide"
+                )
+                TvButton(
+                    text = "Presets",
+                    onClick = { viewModel.navigateTo(AppScreen.SAVED_LAYOUTS) },
+                    style = TvButtonStyle.SECONDARY,
+                    modifier = Modifier.height(32.dp),
+                    leadingIcon = { Icon(Icons.Default.Bookmark, contentDescription = "Presets", tint = Color.White, modifier = Modifier.size(16.dp)) },
+                    testTag = "btn_header_presets"
+                )
+                TvButton(
+                    text = "Save",
+                    onClick = { viewModel.openSaveLayoutDialog() },
+                    style = TvButtonStyle.SECONDARY,
+                    modifier = Modifier.height(32.dp),
+                    testTag = "btn_header_save"
+                )
+                TvButton(
+                    text = "Home",
+                    onClick = { viewModel.navigateTo(AppScreen.HOME) },
+                    style = TvButtonStyle.SECONDARY,
+                    modifier = Modifier.height(32.dp),
+                    leadingIcon = { Icon(Icons.Default.Home, contentDescription = "Home", tint = Color.White, modifier = Modifier.size(16.dp)) },
+                    testTag = "btn_header_home"
+                )
+            }
+        }
+    }
+}
+
 // --- Leanback Bottom Controls Bar ---
 
 @Composable
@@ -368,8 +506,8 @@ fun LeanbackBottomControlBar(
 
     Surface(
         shape = RoundedCornerShape(20.dp),
-        color = Color(0xF2121214),
-        border = BorderStroke(1.dp, Color(0xFF2C2C2E)),
+        color = Color(0xF210131A),
+        border = BorderStroke(1.dp, Color(0xFF252A36)),
         shadowElevation = 12.dp,
         modifier = Modifier.fillMaxWidth().widthIn(max = 1000.dp)
     ) {
@@ -439,10 +577,10 @@ fun LeanbackBottomControlBar(
                     MultiviewLayoutMode.values().forEach { mode ->
                         val isSelected = state.layoutMode == mode
                         val label = when (mode) {
-                            MultiviewLayoutMode.ONE_PANE -> "1x1"
+                            MultiviewLayoutMode.ONE_PANE -> "Solo"
                             MultiviewLayoutMode.TWO_PANE -> "2-Split"
-                            MultiviewLayoutMode.THREE_PANE -> "3-Pane"
-                            MultiviewLayoutMode.FOUR_PANE -> "4-Grid"
+                            MultiviewLayoutMode.THREE_PANE -> "3-GameDay"
+                            MultiviewLayoutMode.FOUR_PANE -> "4-Quad"
                         }
                         TvButton(
                             text = label,
@@ -696,13 +834,13 @@ fun MultiviewVideoPane(
 ) {
     val isSinglePane = viewModel.multiviewState.value.layoutMode == MultiviewLayoutMode.ONE_PANE
 
-    // Spatial D-Pad Focus Border: active viewport receives glowing Cyan stroke
+    // Spatial Focus Border: active viewport receives glowing electric cyan stroke
     val borderModifier = if (isSinglePane) {
         Modifier
     } else if (isActive) {
-        Modifier.border(2.5.dp, TvCyanPrimary)
+        Modifier.border(3.dp, TvCyanPrimary)
     } else {
-        Modifier.border(1.dp, Color(0x33FFFFFF))
+        Modifier.border(1.dp, Color(0xFF252A36))
     }
 
     var lastTapTime by remember { mutableLongStateOf(0L) }
@@ -711,7 +849,7 @@ fun MultiviewVideoPane(
         Box(
             modifier = modifier
                 .testTag("empty_pane_${paneState.paneIndex}")
-                .background(Color(0xFF141418))
+                .background(Color(0xFF0D0F14))
                 .then(borderModifier)
                 .onFocusChanged { if (it.isFocused) onFocus() }
                 .focusable()
@@ -725,34 +863,34 @@ fun MultiviewVideoPane(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF26262E)),
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .border(1.5.dp, TvCyanPrimary.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                        .background(Color.Black),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        Icons.Default.Add,
-                        contentDescription = "Add Channel",
-                        tint = TvCyanPrimary,
-                        modifier = Modifier.size(28.dp)
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_app_brand_logo),
+                        contentDescription = "Tablo Multiview",
+                        modifier = Modifier.size(50.dp).clip(RoundedCornerShape(10.dp))
                     )
                 }
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = "View ${paneState.paneIndex + 1} Available",
+                    text = "Multiview Pane ${paneState.paneIndex + 1}",
                     color = Color.White,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Tap to choose a live broadcast",
+                    text = "Tap or click to select game or channel",
                     color = TvTextSecondary,
                     fontSize = 11.sp
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 TvButton(
-                    text = "+ Add Channel",
+                    text = "+ Add Game / Broadcast",
                     onClick = { viewModel.openChannelPicker(paneState.paneIndex) },
                     style = TvButtonStyle.PRIMARY,
                     modifier = Modifier.height(34.dp),
@@ -853,16 +991,17 @@ fun MultiviewVideoPane(
                 modifier = Modifier
                     .padding(8.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Color.Black.copy(alpha = 0.75f))
+                    .background(Color(0xE610131A))
+                    .border(1.dp, Color(0xFF252A36), RoundedCornerShape(8.dp))
                     .padding(horizontal = 10.dp, vertical = 6.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Red LIVE dot
+                    // LIVE broadcast indicator dot
                     Box(
                         modifier = Modifier
-                            .size(7.dp)
+                            .size(8.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFFFF3B30))
+                            .background(Color(0xFF00E676))
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
@@ -878,6 +1017,23 @@ fun MultiviewVideoPane(
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium
                     )
+
+                    // Prominent Audio Routing Indicator (matching football multiview specs)
+                    val isAudioActive = viewModel.playerManager.isPaneAudioActive(paneState.paneIndex)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(if (isAudioActive) TvCyanPrimary else Color(0xFF1E2330))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = if (isAudioActive) "AUDIO ON" else "MUTED",
+                            color = if (isAudioActive) Color.Black else TvTextSecondary,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
                 }
             }
         }
@@ -893,9 +1049,9 @@ fun MultiviewVideoPane(
         ) {
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                color = Color(0xF0141418),
-                border = BorderStroke(1.dp, Color(0xFF38383E)),
-                shadowElevation = 6.dp
+                color = Color(0xF210131A),
+                border = BorderStroke(1.dp, Color(0xFF2C3240)),
+                shadowElevation = 8.dp
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -911,6 +1067,17 @@ fun MultiviewVideoPane(
                         onClick = { viewModel.togglePaneAudio(paneState.paneIndex) },
                         testTag = "btn_audio_pane_${paneState.paneIndex}"
                     )
+
+                    // Make Main Primary Focus (In multi-pane if this pane is not pane 0)
+                    if (!isSinglePane && paneState.paneIndex != 0) {
+                        IconButtonWithTooltip(
+                            icon = Icons.Default.SwapHoriz,
+                            label = "Make Main",
+                            tint = TvCyanPrimary,
+                            onClick = { viewModel.promotePaneToPrimary(paneState.paneIndex) },
+                            testTag = "btn_promote_pane_${paneState.paneIndex}"
+                        )
+                    }
 
                     // Change Channel
                     IconButtonWithTooltip(

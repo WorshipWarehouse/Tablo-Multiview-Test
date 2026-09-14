@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -45,10 +46,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import com.example.model.MultiviewLayoutMode
 import com.example.model.TabloChannel
 import com.example.model.TabloConnectionState
@@ -177,10 +180,10 @@ fun HomeScreen(
                     modifier = Modifier
                         .weight(1.8f)
                         .height(180.dp),
-                    focusedContainerColor = Color(0xFF222226),
-                    unfocusedContainerColor = Color(0xFF141416),
-                    focusedBorderColor = Color.White,
-                    unfocusedBorderColor = Color(0xFF2C2C2E),
+                    focusedContainerColor = Color(0xFF191D26),
+                    unfocusedContainerColor = Color(0xFF12151B),
+                    focusedBorderColor = TvCyanPrimary,
+                    unfocusedBorderColor = Color(0xFF252A36),
                     testTag = "btn_watch_multiview"
                 ) { isFocused ->
                     Box(
@@ -200,29 +203,45 @@ fun HomeScreen(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Box(
                                         modifier = Modifier
-                                            .size(40.dp)
-                                            .clip(CircleShape)
-                                            .background(Color.White),
+                                            .size(48.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .border(1.dp, TvCyanPrimary.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                                            .background(Color.Black),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(
-                                            Icons.Default.PlayArrow,
-                                            contentDescription = "Watch",
-                                            tint = Color.Black,
-                                            modifier = Modifier.size(26.dp)
+                                        Image(
+                                            painter = painterResource(id = R.drawable.ic_app_brand_logo),
+                                            contentDescription = "Tablo Multiview",
+                                            modifier = Modifier.size(44.dp).clip(RoundedCornerShape(8.dp))
                                         )
                                     }
                                     Spacer(modifier = Modifier.width(16.dp))
                                     Column {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = "TABLO MULTIVIEW",
+                                                color = Color.White,
+                                                fontSize = 19.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                letterSpacing = 0.5.sp
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(4.dp))
+                                                    .background(TvCyanPrimary)
+                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                            ) {
+                                                Text(
+                                                    text = "SPORTS LIVE",
+                                                    color = Color.Black,
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.ExtraBold
+                                                )
+                                            }
+                                        }
                                         Text(
-                                            text = "WATCH MULTIVIEW",
-                                            color = Color.White,
-                                            fontSize = 19.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            letterSpacing = 0.5.sp
-                                        )
-                                        Text(
-                                            text = "Simultaneous live broadcast video panes",
+                                            text = "Simultaneous live broadcast video panes & GameDay focus",
                                             color = TvTextSecondary,
                                             fontSize = 13.sp
                                         )
@@ -232,12 +251,12 @@ fun HomeScreen(
                                 // 4-Pane Mini Grid Graphic
                                 Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                                     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                        Box(modifier = Modifier.size(16.dp).background(if (isFocused) Color.White else Color(0xFF636366), RoundedCornerShape(2.dp)))
-                                        Box(modifier = Modifier.size(16.dp).background(Color(0xFF2C2C2E), RoundedCornerShape(2.dp)))
+                                        Box(modifier = Modifier.size(16.dp).background(if (isFocused) TvCyanPrimary else Color(0xFF00B4D8), RoundedCornerShape(2.dp)))
+                                        Box(modifier = Modifier.size(16.dp).background(Color(0xFF252A36), RoundedCornerShape(2.dp)))
                                     }
                                     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                        Box(modifier = Modifier.size(16.dp).background(Color(0xFF2C2C2E), RoundedCornerShape(2.dp)))
-                                        Box(modifier = Modifier.size(16.dp).background(Color(0xFF2C2C2E), RoundedCornerShape(2.dp)))
+                                        Box(modifier = Modifier.size(16.dp).background(Color(0xFF252A36), RoundedCornerShape(2.dp)))
+                                        Box(modifier = Modifier.size(16.dp).background(Color(0xFF252A36), RoundedCornerShape(2.dp)))
                                     }
                                 }
                             }
@@ -254,7 +273,7 @@ fun HomeScreen(
                                 )
                                 Text(
                                     text = "Press SELECT to Launch  ▶",
-                                    color = if (isFocused) Color.White else Color(0xFF8E8E93),
+                                    color = if (isFocused) TvCyanPrimary else Color(0xFF8E8E93),
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )

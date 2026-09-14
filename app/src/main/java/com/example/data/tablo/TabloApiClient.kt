@@ -614,4 +614,61 @@ class TabloApiClient(
                 httpClient.newCall(request).execute().close()
             } catch (_: Exception) {}
         }
+
+    /**
+     * Keep an active live stream alive on the Tablo DVR.
+     * Prevents the Tablo tuner lease from timing out after prolonged viewing.
+     */
+    suspend fun keepStreamAlive(
+        host: String,
+        channelId: String,
+        token: String?,
+        clientId: String,
+        port: Int = 8885
+    ) = withContext(Dispatchers.IO) {
+        try {
+            // First attempt: POST to /stream/keepalive if token exists
+            if (!token.isNullOrBlank()) {
+                val path = "/stream/keepalive"
+                val url = "http://$host:$port$path"
+                val bodyString = JSONObject().put("token", token).toString()
+                val (authHeader, dateHeader) = authService.makeDeviceAuth("POST", path, bodyString)
+
+                val request = Request.Builder()
+                    .url(url)
+                    .post(bodyString.toRequestBody(jsonMediaType))
+                    .header("Authorization", authHeader)
+                    .header("Date", dateHeader)
+                    .header("Content-Type", "application/json")
+                    .header("User-Agent", TabloAuthService.LOCAL_USER_AGENT)
+                    .build()
+
+                val resp = fastHttpClient.newCall(request).execute()
+                val success = resp.isSuccessful
+                resp.close()
+                if (success) return@withContext
+            }
+
+            // Fallback: Refresh lease via watch endpoint
+            val cleanChannelId = channelId.substringAfterLast("/")
+            val watchPath = "/guide/channels/$cleanChannelId/watch"
+            val effectiveClientId = if (clientId.isNotBlank()) clientId else "tablo-multiview-client"
+            val payload = JSONObject().apply {
+                put("device_id", effectiveClientId)
+                put("platform", "ios")
+            }.toString()
+
+            val (wAuth, wDate) = authService.makeDeviceAuth("POST", watchPath, payload)
+            val watchReq = Request.Builder()
+                .url("http://$host:$port$watchPath")
+                .post(payload.toRequestBody(jsonMediaType))
+                .header("Authorization", wAuth)
+                .header("Date", wDate)
+                .header("Content-Type", "application/json")
+                .header("User-Agent", TabloAuthService.LOCAL_USER_AGENT)
+                .build()
+
+            fastHttpClient.newCall(watchReq).execute().close()
+        } catch (_: Exception) {}
+    }
 }

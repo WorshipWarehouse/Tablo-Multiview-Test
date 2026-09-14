@@ -73,6 +73,7 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     private val streamJobs = arrayOfNulls<Job>(4)
+    private var keepaliveJob: Job? = null
 
     init {
         // Startup flow
@@ -275,6 +276,7 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
         }
 
         playerManager.setActiveAudioPane(initialActivePane)
+        startKeepaliveLoop()
         saveCurrentSession()
     }
 
@@ -405,6 +407,38 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
         paneA.channel?.let { startStreamForPane(targetIndex, it) }
 
         playerManager.setActiveAudioPane(targetIndex)
+        saveCurrentSession()
+    }
+
+    /**
+     * Promotes a secondary video pane to the primary large focus position (Pane 0).
+     * Essential for Football & Sports Multiview (e.g., 3-pane GameDay Focus mode).
+     */
+    fun promotePaneToPrimary(targetIndex: Int) {
+        if (targetIndex <= 0 || targetIndex >= 4) return
+        val panes = _multiviewState.value.panes
+        val primaryPane = panes[0]
+        val targetPane = panes[targetIndex]
+
+        val updatedPanes = panes.map { pane ->
+            when (pane.paneIndex) {
+                0 -> pane.copy(channel = targetPane.channel)
+                targetIndex -> pane.copy(channel = primaryPane.channel)
+                else -> pane
+            }
+        }
+
+        _multiviewState.value = _multiviewState.value.copy(
+            panes = updatedPanes,
+            activePaneIndex = 0,
+            isActionMenuOpen = false
+        )
+
+        // Restart streams in their swapped pane positions
+        targetPane.channel?.let { startStreamForPane(0, it) }
+        primaryPane.channel?.let { startStreamForPane(targetIndex, it) }
+
+        playerManager.setActiveAudioPane(0)
         saveCurrentSession()
     }
 
@@ -662,7 +696,30 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
         preferences.saveLastLayout(state.layoutMode, channelIds, state.activePaneIndex)
     }
 
+    private fun startKeepaliveLoop() {
+        keepaliveJob?.cancel()
+        keepaliveJob = viewModelScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(40_000L) // Ping every 40s to keep Tablo transcode lease active
+                val device = deviceRepository.currentDevice.value ?: continue
+                val current = _multiviewState.value
+                val activeCount = current.layoutMode.paneCount
+                for (i in 0 until activeCount) {
+                    val pane = current.panes.getOrNull(i) ?: continue
+                    val ch = pane.channel ?: continue
+                    val token = pane.streamToken
+                    if (!token.isNullOrBlank() && pane.playbackState != StreamPlaybackState.ERROR) {
+                        try {
+                            apiClient.keepStreamAlive(device.host, ch.id, token, preferences.getClientId(), device.port)
+                        } catch (_: Exception) {}
+                    }
+                }
+            }
+        }
+    }
+
     private fun stopAllStreams() {
+        keepaliveJob?.cancel()
         val device = deviceRepository.currentDevice.value
         for (i in 0 until 4) {
             streamJobs[i]?.cancel()

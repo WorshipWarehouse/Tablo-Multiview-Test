@@ -62,6 +62,16 @@ class TabloPlayerInstance(
     private var totalDroppedFrames: Int = 0
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
 
+    // Anti-stall watchdog: If playback remains buffering for >5s, re-anchor to live edge
+    private val bufferingWatchdogRunnable = Runnable {
+        exoPlayer?.let { player ->
+            if (player.playbackState == Player.STATE_BUFFERING) {
+                Log.w(tag, "Pane $paneIndex buffering stall detected (>5s), re-anchoring to live edge...")
+                player.seekToDefaultPosition()
+            }
+        }
+    }
+
     private val diagnosticsRunnable = object : Runnable {
         override fun run() {
             pollDiagnostics()
@@ -79,18 +89,21 @@ class TabloPlayerInstance(
         // Shared 64KB segment allocator
         val allocator = DefaultAllocator(true, C.DEFAULT_BUFFER_SEGMENT_SIZE)
 
-        // Robust LoadControl: 8s min buffer prevents rapid re-buffering on 2-4s Tablo HLS chunks.
-        // Bounded max buffer (20s) avoids RAM pressure while ensuring smooth playback.
+        // Robust LoadControl modeled after Tablo4U & live HLS playback:
+        // - Fast startup (1.5s buffer)
+        // - 8s min / 25s max buffer ensures uninterrupted playback on local Wi-Fi
+        // - Zero back-buffer (backBuffer = 0, retain = false) to prevent memory ballooning and OOM crashes
+        // - Bounded memory allocation (12MB max per player)
         val loadControl = DefaultLoadControl.Builder()
             .setAllocator(allocator)
             .setBufferDurationsMs(
                 /* minBufferMs = */ 8000,
-                /* maxBufferMs = */ 20000,
+                /* maxBufferMs = */ 25000,
                 /* bufferForPlaybackMs = */ 1500,
                 /* bufferForPlaybackAfterRebufferMs = */ 3000
             )
-            .setBackBuffer(2000, true)
-            .setTargetBufferBytes(16 * 1024 * 1024) // 16MB allocation accommodates 1080i ATSC streams
+            .setBackBuffer(0, false)
+            .setTargetBufferBytes(12 * 1024 * 1024)
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
 
@@ -124,27 +137,35 @@ class TabloPlayerInstance(
                     override fun onPlaybackStateChanged(playbackState: Int) {
                         when (playbackState) {
                             Player.STATE_IDLE -> {
+                                handler.removeCallbacks(bufferingWatchdogRunnable)
                                 onStateChange(paneIndex, StreamPlaybackState.IDLE, null)
                             }
                             Player.STATE_BUFFERING -> {
+                                handler.removeCallbacks(bufferingWatchdogRunnable)
+                                handler.postDelayed(bufferingWatchdogRunnable, 5000L)
                                 onStateChange(paneIndex, StreamPlaybackState.BUFFERING, null)
                             }
                             Player.STATE_READY -> {
+                                handler.removeCallbacks(bufferingWatchdogRunnable)
                                 autoRetryCount = 0
                                 onStateChange(paneIndex, StreamPlaybackState.PLAYING, null)
                             }
                             Player.STATE_ENDED -> {
+                                handler.removeCallbacks(bufferingWatchdogRunnable)
                                 onStateChange(paneIndex, StreamPlaybackState.IDLE, null)
                             }
                         }
                     }
 
                     override fun onPlayerError(error: PlaybackException) {
+                        handler.removeCallbacks(bufferingWatchdogRunnable)
                         Log.e(tag, "ExoPlayer error on pane $paneIndex: ${error.errorCodeName} (${error.errorCode}) - ${error.message}", error)
                         
-                        // Robust live HLS recovery: if stream fell behind live window, auto-seek to live edge
-                        if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
-                            Log.w(tag, "Pane $paneIndex fell behind live window, automatically seeking to live edge...")
+                        // Robust live HLS recovery: if stream fell behind live window or segment expired (404/410), auto-seek to live edge
+                        if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW ||
+                            error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
+                            error.errorCode == PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND) {
+                            Log.w(tag, "Pane $paneIndex live window desync, re-anchoring to live edge...")
                             exoPlayer?.seekToDefaultPosition()
                             exoPlayer?.prepare()
                             return
@@ -230,7 +251,7 @@ class TabloPlayerInstance(
             .build()
 
         val hlsMediaSource = HlsMediaSource.Factory(dataSourceFactory)
-            .setAllowChunklessPreparation(false)
+            .setAllowChunklessPreparation(true)
             .createMediaSource(mediaItem)
 
         player.setMediaSource(hlsMediaSource)
@@ -275,6 +296,7 @@ class TabloPlayerInstance(
     }
 
     fun stop() {
+        handler.removeCallbacks(bufferingWatchdogRunnable)
         handler.removeCallbacks(diagnosticsRunnable)
         handler.removeCallbacksAndMessages(null)
         exoPlayer?.stop()
@@ -283,6 +305,7 @@ class TabloPlayerInstance(
     }
 
     fun release() {
+        handler.removeCallbacks(bufferingWatchdogRunnable)
         handler.removeCallbacks(diagnosticsRunnable)
         handler.removeCallbacksAndMessages(null)
         stop()
