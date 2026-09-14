@@ -212,12 +212,15 @@ fun SavedLayoutCardItem(
                 }
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 TvButton(
                     text = "Launch",
                     onClick = onLaunch,
                     style = if (isFocused) TvButtonStyle.PRIMARY else TvButtonStyle.SECONDARY,
-                    modifier = Modifier.height(40.dp),
+                    minHeight = 36.dp,
                     leadingIcon = {
                         Icon(
                             Icons.Default.PlayArrow,
@@ -231,7 +234,7 @@ fun SavedLayoutCardItem(
                     text = "Delete",
                     onClick = onDelete,
                     style = TvButtonStyle.OUTLINE,
-                    modifier = Modifier.height(40.dp),
+                    minHeight = 36.dp,
                     leadingIcon = {
                         Icon(
                             Icons.Default.Delete,

@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -134,6 +135,20 @@ fun MultiviewScreen(
         }
     }
 
+    // Android TV Remote Back Button Handling (YouTube TV & Sunday Ticket style)
+    BackHandler(enabled = true) {
+        when {
+            state.isActionMenuOpen -> viewModel.toggleActionMenu(false)
+            state.isChannelPickerOpen -> viewModel.closeChannelPicker()
+            state.isSaveLayoutDialogOpen -> viewModel.closeSaveLayoutDialog()
+            state.showQualityMenuForPane != null -> viewModel.openQualityMenu(null)
+            state.isReorderMode -> viewModel.cancelReorderMode()
+            showHud -> showHud = false
+            state.isFullScreenSingle -> viewModel.toggleFullScreenActivePane()
+            else -> viewModel.navigateTo(AppScreen.HOME)
+        }
+    }
+
     // PiP Mode: Render only active stream full bleed with no overlays
     if (state.isInPipMode) {
         val activePane = state.panes.getOrNull(state.activePaneIndex) ?: state.panes.first()
@@ -151,7 +166,7 @@ fun MultiviewScreen(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
             ) {
-                if (!showHud) pingHud() else viewModel.toggleActionMenu()
+                if (!showHud) pingHud() else showHud = false
             }
             .onKeyEvent { keyEvent ->
                 if (keyEvent.type == KeyEventType.KeyUp) {
@@ -182,10 +197,28 @@ fun MultiviewScreen(
                         }
                         Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
                             if (!showHud) {
-                                pingHud()
+                                viewModel.toggleFullScreenActivePane()
                             } else {
-                                viewModel.toggleActionMenu()
+                                pingHud()
                             }
+                            true
+                        }
+                        Key.DirectionDown -> {
+                            pingHud()
+                            true
+                        }
+                        Key.DirectionUp -> {
+                            if (showHud) {
+                                showHud = false
+                                true
+                            } else false
+                        }
+                        Key.F -> {
+                            viewModel.toggleFullScreenActivePane()
+                            true
+                        }
+                        Key.A -> {
+                            viewModel.togglePaneAudio(state.activePaneIndex)
                             true
                         }
                         else -> false
@@ -505,13 +538,15 @@ fun LeanbackBottomControlBar(
     val activeChannel = activePane?.channel
 
     Surface(
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(16.dp),
         color = Color(0xF210131A),
         border = BorderStroke(1.dp, Color(0xFF252A36)),
-        shadowElevation = 12.dp,
-        modifier = Modifier.fillMaxWidth().widthIn(max = 1000.dp)
+        shadowElevation = 14.dp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .widthIn(max = 1100.dp)
     ) {
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
             // Top Row: Active stream identity & primary actions
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -519,7 +554,7 @@ fun LeanbackBottomControlBar(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 // Active pane indicator with cyan accent
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
@@ -530,23 +565,25 @@ fun LeanbackBottomControlBar(
                             text = "PANE ${state.activePaneIndex + 1}",
                             color = Color.Black,
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.ExtraBold
                         )
                     }
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(
-                            text = activeChannel?.displayTitle ?: "Pane Empty",
+                            text = activeChannel?.displayTitle ?: "Select Game or Channel",
                             color = Color.White,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         val airingTitle = activePane?.airing?.title ?: activeChannel?.displaySubtitle
                         if (!airingTitle.isNullOrBlank()) {
                             Text(
                                 text = airingTitle,
                                 color = TvTextSecondary,
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -554,52 +591,107 @@ fun LeanbackBottomControlBar(
                     }
                 }
 
-                // Grid layout quick toggles & Add View
+                // Grid layout quick toggles & clean action buttons
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Add View quick action (if not yet in 4-pane)
-                    if (state.layoutMode != MultiviewLayoutMode.FOUR_PANE) {
-                        TvButton(
-                            text = "+ Add View",
-                            onClick = {
-                                viewModel.addNextView()
-                                onPingHud()
-                            },
-                            style = TvButtonStyle.AMBER,
-                            modifier = Modifier.height(34.dp),
-                            leadingIcon = { Icon(Icons.Default.Add, contentDescription = "Add View", tint = Color.Black, modifier = Modifier.size(16.dp)) },
-                            testTag = "btn_hud_add_view"
-                        )
-                    }
+                    val isSinglePane = state.layoutMode == MultiviewLayoutMode.ONE_PANE
 
-                    MultiviewLayoutMode.values().forEach { mode ->
-                        val isSelected = state.layoutMode == mode
-                        val label = when (mode) {
-                            MultiviewLayoutMode.ONE_PANE -> "Solo"
-                            MultiviewLayoutMode.TWO_PANE -> "2-Split"
-                            MultiviewLayoutMode.THREE_PANE -> "3-GameDay"
-                            MultiviewLayoutMode.FOUR_PANE -> "4-Quad"
-                        }
-                        TvButton(
-                            text = label,
-                            onClick = {
-                                viewModel.changeLayoutMode(mode)
-                                onPingHud()
-                            },
-                            style = if (isSelected) TvButtonStyle.PRIMARY else TvButtonStyle.OUTLINE,
-                            modifier = Modifier.height(34.dp)
-                        )
-                    }
-
-                    // Native Picture-in-Picture button
+                    // Audio Toggle
+                    val isAudioActive = viewModel.playerManager.isPaneAudioActive(state.activePaneIndex)
                     TvButton(
-                        text = "PiP",
-                        onClick = { viewModel.requestPictureInPicture() },
+                        text = if (isAudioActive) "Audio On" else "Muted",
+                        onClick = {
+                            viewModel.togglePaneAudio(state.activePaneIndex)
+                            onPingHud()
+                        },
+                        style = if (isAudioActive) TvButtonStyle.PRIMARY else TvButtonStyle.SECONDARY,
+                        minHeight = 36.dp,
+                        leadingIcon = {
+                            Icon(
+                                if (isAudioActive) Icons.Default.VolumeUp else Icons.Default.VolumeMute,
+                                contentDescription = null,
+                                tint = if (isAudioActive) Color.Black else Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        },
+                        testTag = "btn_hud_audio"
+                    )
+
+                    // Fullscreen / Multiview Toggle
+                    TvButton(
+                        text = if (isSinglePane) "Multiview" else "Full Screen",
+                        onClick = {
+                            viewModel.toggleFullScreenActivePane()
+                            onPingHud()
+                        },
                         style = TvButtonStyle.SECONDARY,
-                        modifier = Modifier.height(34.dp),
-                        leadingIcon = { Icon(Icons.Default.FitScreen, contentDescription = "PiP", tint = Color.White, modifier = Modifier.size(16.dp)) }
+                        minHeight = 36.dp,
+                        leadingIcon = {
+                            Icon(
+                                if (isSinglePane) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        },
+                        testTag = "btn_hud_fullscreen"
+                    )
+
+                    // Layout Mode Selector Pills (1, 2, 3, 4)
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFF1A1E28))
+                            .border(1.dp, Color(0xFF2C3240), RoundedCornerShape(8.dp))
+                            .padding(2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        listOf(
+                            MultiviewLayoutMode.ONE_PANE to "1",
+                            MultiviewLayoutMode.TWO_PANE to "2",
+                            MultiviewLayoutMode.THREE_PANE to "3",
+                            MultiviewLayoutMode.FOUR_PANE to "4"
+                        ).forEach { (mode, label) ->
+                            val isSelected = state.layoutMode == mode
+                            TvFocusableCard(
+                                onClick = {
+                                    viewModel.changeLayoutMode(mode)
+                                    onPingHud()
+                                },
+                                modifier = Modifier.size(width = 34.dp, height = 32.dp),
+                                focusedContainerColor = TvCyanPrimary,
+                                unfocusedContainerColor = if (isSelected) Color(0xFF2E3547) else Color.Transparent,
+                                focusedBorderColor = Color.White,
+                                unfocusedBorderColor = if (isSelected) TvCyanPrimary else Color.Transparent,
+                                testTag = "btn_layout_pill_$label"
+                            ) { isFocused ->
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = label,
+                                        color = if (isFocused) Color.Black else if (isSelected) Color.White else Color(0xFF9E9EA7),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Change Channel Modal
+                    TvButton(
+                        text = "Channels",
+                        onClick = {
+                            viewModel.openChannelPicker(state.activePaneIndex)
+                            onPingHud()
+                        },
+                        style = TvButtonStyle.SECONDARY,
+                        minHeight = 36.dp,
+                        leadingIcon = {
+                            Icon(Icons.Default.List, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                        },
+                        testTag = "btn_hud_channels"
                     )
 
                     // Menu button
@@ -607,17 +699,18 @@ fun LeanbackBottomControlBar(
                         text = "Menu",
                         onClick = { viewModel.toggleActionMenu(true) },
                         style = TvButtonStyle.SECONDARY,
-                        modifier = Modifier.height(34.dp),
-                        leadingIcon = { Icon(Icons.Default.Tune, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp)) }
+                        minHeight = 36.dp,
+                        leadingIcon = { Icon(Icons.Default.Tune, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp)) },
+                        testTag = "btn_hud_menu"
                     )
                 }
             }
 
             // Bottom Row: Quick-channel flipping carousel
             if (channels.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                     contentPadding = PaddingValues(vertical = 2.dp)
                 ) {
                     items(channels) { ch ->
@@ -628,30 +721,30 @@ fun LeanbackBottomControlBar(
                                 onPingHud()
                             },
                             modifier = Modifier
-                                .width(120.dp)
-                                .height(44.dp),
-                            focusedContainerColor = Color(0xFF2C2C30),
-                            unfocusedContainerColor = if (isCurrent) Color(0xFF222226) else Color(0xFF161618),
+                                .width(130.dp)
+                                .height(46.dp),
+                            focusedContainerColor = Color(0xFF2C2C34),
+                            unfocusedContainerColor = if (isCurrent) Color(0xFF1E2533) else Color(0xFF16181F),
                             focusedBorderColor = TvCyanPrimary,
-                            unfocusedBorderColor = if (isCurrent) TvCyanPrimary.copy(alpha = 0.6f) else Color(0xFF2A2A2E),
+                            unfocusedBorderColor = if (isCurrent) TvCyanPrimary.copy(alpha = 0.8f) else Color(0xFF282C38),
                             testTag = "carousel_ch_${ch.id}"
                         ) { isFocused ->
                             Row(
-                                modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
+                                modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
                                     text = ch.channelNumberFormatted,
                                     color = if (isFocused) Color.White else Color(0xFFD1D1D6),
-                                    fontSize = 12.sp,
+                                    fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
                                     text = ch.network.ifBlank { ch.callSign },
                                     color = if (isCurrent) TvCyanPrimary else Color.White,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -863,38 +956,30 @@ fun MultiviewVideoPane(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(56.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .border(1.5.dp, TvCyanPrimary.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
-                        .background(Color.Black),
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF1E2330)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_app_brand_logo),
-                        contentDescription = "Tablo Multiview",
-                        modifier = Modifier.size(50.dp).clip(RoundedCornerShape(10.dp))
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = "Add View",
+                        tint = TvCyanPrimary,
+                        modifier = Modifier.size(24.dp)
                     )
                 }
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = "Multiview Pane ${paneState.paneIndex + 1}",
+                    text = "Pane ${paneState.paneIndex + 1}",
                     color = Color.White,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Tap or click to select game or channel",
+                    text = "Press SELECT to Choose Game",
                     color = TvTextSecondary,
                     fontSize = 11.sp
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                TvButton(
-                    text = "+ Add Game / Broadcast",
-                    onClick = { viewModel.openChannelPicker(paneState.paneIndex) },
-                    style = TvButtonStyle.PRIMARY,
-                    modifier = Modifier.height(34.dp),
-                    testTag = "btn_add_ch_pane_${paneState.paneIndex}"
                 )
             }
         }
@@ -911,7 +996,16 @@ fun MultiviewVideoPane(
             .onKeyEvent { keyEvent ->
                 if (keyEvent.type == KeyEventType.KeyUp) {
                     when (keyEvent.key) {
-                        Key.DirectionCenter, Key.Enter -> {
+                        Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
+                            val mode = viewModel.multiviewState.value.layoutMode
+                            if (mode != MultiviewLayoutMode.ONE_PANE) {
+                                viewModel.toggleFullScreenActivePane()
+                            } else {
+                                if (!showOverlay) onClick() else viewModel.toggleFullScreenActivePane()
+                            }
+                            true
+                        }
+                        Key.DirectionDown -> {
                             onClick()
                             true
                         }
@@ -937,7 +1031,6 @@ fun MultiviewVideoPane(
             ) {
                 val now = System.currentTimeMillis()
                 if (now - lastTapTime < 350) {
-                    // Double tap: maximize/restore fullscreen
                     viewModel.toggleFullScreenActivePane()
                 } else {
                     onClick()
@@ -980,7 +1073,7 @@ fun MultiviewVideoPane(
             )
         }
 
-        // Top Channel Info Pill (Visible on hover/interaction)
+        // Top Channel Info Pill (Clean YouTube TV pill style)
         AnimatedVisibility(
             visible = showOverlay,
             enter = fadeIn(),
@@ -1018,7 +1111,7 @@ fun MultiviewVideoPane(
                         fontWeight = FontWeight.Medium
                     )
 
-                    // Prominent Audio Routing Indicator (matching football multiview specs)
+                    // Audio Routing Indicator
                     val isAudioActive = viewModel.playerManager.isPaneAudioActive(paneState.paneIndex)
                     Spacer(modifier = Modifier.width(8.dp))
                     Box(
@@ -1034,106 +1127,6 @@ fun MultiviewVideoPane(
                             fontWeight = FontWeight.ExtraBold
                         )
                     }
-                }
-            }
-        }
-
-        // HUD Viewport Controls Ribbon (Anchored at the bottom of the active pane)
-        AnimatedVisibility(
-            visible = showOverlay && isActive,
-            enter = fadeIn(),
-            exit = fadeOut(),
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(8.dp)
-        ) {
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = Color(0xF210131A),
-                border = BorderStroke(1.dp, Color(0xFF2C3240)),
-                shadowElevation = 8.dp
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    // Audio Routing Toggle
-                    val isAudioActive = viewModel.playerManager.isPaneAudioActive(paneState.paneIndex)
-                    IconButtonWithTooltip(
-                        icon = if (isAudioActive) Icons.Default.VolumeUp else Icons.Default.VolumeMute,
-                        label = if (isAudioActive) "Sound ON" else "Muted",
-                        tint = if (isAudioActive) TvCyanPrimary else Color(0xFF8E8E93),
-                        onClick = { viewModel.togglePaneAudio(paneState.paneIndex) },
-                        testTag = "btn_audio_pane_${paneState.paneIndex}"
-                    )
-
-                    // Make Main Primary Focus (In multi-pane if this pane is not pane 0)
-                    if (!isSinglePane && paneState.paneIndex != 0) {
-                        IconButtonWithTooltip(
-                            icon = Icons.Default.SwapHoriz,
-                            label = "Make Main",
-                            tint = TvCyanPrimary,
-                            onClick = { viewModel.promotePaneToPrimary(paneState.paneIndex) },
-                            testTag = "btn_promote_pane_${paneState.paneIndex}"
-                        )
-                    }
-
-                    // Change Channel
-                    IconButtonWithTooltip(
-                        icon = Icons.Default.List,
-                        label = "Channel",
-                        tint = Color.White,
-                        onClick = { viewModel.openChannelPicker(paneState.paneIndex) },
-                        testTag = "btn_ch_pane_${paneState.paneIndex}"
-                    )
-
-                    // Stream Quality Selector Button
-                    IconButtonWithTooltip(
-                        icon = Icons.Default.Speed,
-                        label = paneState.quality.name.replace("HD_", "").replace("SD_", ""),
-                        tint = Color.White,
-                        onClick = { viewModel.openQualityMenu(paneState.paneIndex) },
-                        testTag = "btn_quality_pane_${paneState.paneIndex}"
-                    )
-
-                    // Stream Diagnostics Toggle
-                    IconButtonWithTooltip(
-                        icon = Icons.Default.Info,
-                        label = "Stats",
-                        tint = if (paneState.showDiagnostics) TvCyanPrimary else Color(0xFF8E8E93),
-                        onClick = { viewModel.togglePaneDiagnostics(paneState.paneIndex) },
-                        testTag = "btn_diag_pane_${paneState.paneIndex}"
-                    )
-
-                    // Close pane / Free tuner (in multi-pane mode)
-                    if (!isSinglePane) {
-                        IconButtonWithTooltip(
-                            icon = Icons.Default.Close,
-                            label = "Close",
-                            tint = Color(0xFFFF453A),
-                            onClick = { viewModel.clearPane(paneState.paneIndex) },
-                            testTag = "btn_close_pane_${paneState.paneIndex}"
-                        )
-                    }
-
-                    // Fullscreen Toggle
-                    IconButtonWithTooltip(
-                        icon = if (isSinglePane) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
-                        label = if (isSinglePane) "Grid" else "Full",
-                        tint = Color.White,
-                        onClick = { viewModel.toggleFullScreenActivePane() },
-                        testTag = "btn_fullscreen_pane_${paneState.paneIndex}"
-                    )
-
-                    // Picture-in-Picture
-                    IconButtonWithTooltip(
-                        icon = Icons.Default.FitScreen,
-                        label = "PiP",
-                        tint = Color.White,
-                        onClick = { viewModel.requestPictureInPicture() },
-                        testTag = "btn_pip_pane_${paneState.paneIndex}"
-                    )
                 }
             }
         }
@@ -1547,10 +1540,10 @@ fun MultiviewActionMenu(
                     MultiviewLayoutMode.values().forEach { mode ->
                         val isSelected = state.layoutMode == mode
                         val label = when (mode) {
-                            MultiviewLayoutMode.ONE_PANE -> "1 Screen"
-                            MultiviewLayoutMode.TWO_PANE -> "2 Screens"
-                            MultiviewLayoutMode.THREE_PANE -> "3 Screens"
-                            MultiviewLayoutMode.FOUR_PANE -> "4 Screens"
+                            MultiviewLayoutMode.ONE_PANE -> "1 (Solo)"
+                            MultiviewLayoutMode.TWO_PANE -> "2 (Split)"
+                            MultiviewLayoutMode.THREE_PANE -> "3 (Focus)"
+                            MultiviewLayoutMode.FOUR_PANE -> "4 (Quad)"
                         }
                         TvButton(
                             text = label,

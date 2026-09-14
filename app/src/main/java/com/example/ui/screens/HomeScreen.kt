@@ -169,228 +169,226 @@ fun HomeScreen(
         ) {
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Primary Actions Row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // Primary Hero Card: Watch Multiview
-                TvFocusableCard(
-                    onClick = { viewModel.startMultiviewWithLastSession() },
+            // Hero Marquee Card: Watch Live Multiview (NFL Sunday Ticket & YouTube TV Style)
+            TvFocusableCard(
+                onClick = { viewModel.startMultiviewWithLastSession() },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(160.dp),
+                focusedContainerColor = Color(0xFF191E28),
+                unfocusedContainerColor = Color(0xFF12151C),
+                focusedBorderColor = TvCyanPrimary,
+                unfocusedBorderColor = Color(0xFF252A36),
+                testTag = "btn_watch_multiview"
+            ) { isFocused ->
+                Row(
                     modifier = Modifier
-                        .weight(1.8f)
-                        .height(180.dp),
-                    focusedContainerColor = Color(0xFF191D26),
-                    unfocusedContainerColor = Color(0xFF12151B),
-                    focusedBorderColor = TvCyanPrimary,
-                    unfocusedBorderColor = Color(0xFF252A36),
-                    testTag = "btn_watch_multiview"
-                ) { isFocused ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(24.dp)
+                        .fillMaxSize()
+                        .padding(horizontal = 28.dp, vertical = 20.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
                     ) {
-                        Column(
-                            verticalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxSize()
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .border(1.5.dp, TvCyanPrimary.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                                .background(Color.Black),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(48.dp)
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .border(1.dp, TvCyanPrimary.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
-                                            .background(Color.Black),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Image(
-                                            painter = painterResource(id = R.drawable.ic_app_brand_logo),
-                                            contentDescription = "Tablo Multiview",
-                                            modifier = Modifier.size(44.dp).clip(RoundedCornerShape(8.dp))
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(16.dp))
-                                    Column {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(
-                                                text = "TABLO MULTIVIEW",
-                                                color = Color.White,
-                                                fontSize = 19.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                letterSpacing = 0.5.sp
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Box(
-                                                modifier = Modifier
-                                                    .clip(RoundedCornerShape(4.dp))
-                                                    .background(TvCyanPrimary)
-                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                                            ) {
-                                                Text(
-                                                    text = "SPORTS LIVE",
-                                                    color = Color.Black,
-                                                    fontSize = 9.sp,
-                                                    fontWeight = FontWeight.ExtraBold
-                                                )
-                                            }
-                                        }
-                                        Text(
-                                            text = "Simultaneous live broadcast video panes & GameDay focus",
-                                            color = TvTextSecondary,
-                                            fontSize = 13.sp
-                                        )
-                                    }
-                                }
+                            Image(
+                                painter = painterResource(id = R.drawable.ic_app_brand_logo),
+                                contentDescription = "Tablo Multiview",
+                                modifier = Modifier.size(50.dp).clip(RoundedCornerShape(10.dp))
+                            )
+                        }
 
-                                // 4-Pane Mini Grid Graphic
-                                Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                        Box(modifier = Modifier.size(16.dp).background(if (isFocused) TvCyanPrimary else Color(0xFF00B4D8), RoundedCornerShape(2.dp)))
-                                        Box(modifier = Modifier.size(16.dp).background(Color(0xFF252A36), RoundedCornerShape(2.dp)))
-                                    }
-                                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                        Box(modifier = Modifier.size(16.dp).background(Color(0xFF252A36), RoundedCornerShape(2.dp)))
-                                        Box(modifier = Modifier.size(16.dp).background(Color(0xFF252A36), RoundedCornerShape(2.dp)))
-                                    }
+                        Spacer(modifier = Modifier.width(20.dp))
+
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "LIVE MULTIVIEW",
+                                    color = Color.White,
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    letterSpacing = 0.5.sp
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(TvCyanPrimary)
+                                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "SPORTS & LIVE TV",
+                                        color = Color.Black,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
                                 }
                             }
-
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    text = if (channels.isNotEmpty()) "${channels.size} live channels ready on Tablo" else "Ready to stream",
-                                    color = TvTextSecondary,
-                                    fontSize = 13.sp
-                                )
-                                Text(
-                                    text = "Press SELECT to Launch  ▶",
-                                    color = if (isFocused) TvCyanPrimary else Color(0xFF8E8E93),
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = if (channels.isNotEmpty()) {
+                                    "Watch up to 4 simultaneous live games or broadcasts • ${channels.size} channels available"
+                                } else {
+                                    "Watch up to 4 simultaneous live broadcast video panes"
+                                },
+                                color = TvTextSecondary,
+                                fontSize = 13.sp
+                            )
                         }
                     }
-                }
 
+                    // Action prompt & grid preview
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        // 4-Pane Mini Grid Graphic
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Box(modifier = Modifier.size(16.dp).background(if (isFocused) TvCyanPrimary else Color(0xFF00B4D8), RoundedCornerShape(2.dp)))
+                                Box(modifier = Modifier.size(16.dp).background(Color(0xFF252A36), RoundedCornerShape(2.dp)))
+                            }
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Box(modifier = Modifier.size(16.dp).background(Color(0xFF252A36), RoundedCornerShape(2.dp)))
+                                Box(modifier = Modifier.size(16.dp).background(Color(0xFF252A36), RoundedCornerShape(2.dp)))
+                            }
+                        }
+
+                        TvButton(
+                            text = "Launch Multiview",
+                            onClick = { viewModel.startMultiviewWithLastSession() },
+                            style = if (isFocused) TvButtonStyle.PRIMARY else TvButtonStyle.SECONDARY,
+                            minHeight = 40.dp,
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.PlayArrow,
+                                    contentDescription = null,
+                                    tint = if (isFocused) Color.Black else Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Navigation Row: 3 Wide Cards (No cutoffs, comfortable layout)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
                 // Channel Guide Card
                 TvFocusableCard(
                     onClick = { viewModel.navigateTo(AppScreen.CHANNEL_GUIDE) },
                     modifier = Modifier
                         .weight(1f)
-                        .height(180.dp),
+                        .height(84.dp),
                     focusedContainerColor = Color(0xFF222226),
                     unfocusedContainerColor = Color(0xFF141416),
                     focusedBorderColor = Color.White,
                     unfocusedBorderColor = Color(0xFF2C2C2E),
                     testTag = "btn_channel_guide"
                 ) { isFocused ->
-                    Column(
+                    Row(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(20.dp),
-                        verticalArrangement = Arrangement.SpaceBetween
+                            .padding(horizontal = 18.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(36.dp)
+                                .size(40.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF222226)),
+                                .background(if (isFocused) Color.White else Color(0xFF222226)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 Icons.Default.List,
                                 contentDescription = "Guide",
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
+                                tint = if (isFocused) Color.Black else Color.White,
+                                modifier = Modifier.size(22.dp)
                             )
                         }
+
+                        Spacer(modifier = Modifier.width(14.dp))
 
                         Column {
                             Text(
                                 text = "CHANNEL GUIDE",
                                 color = Color.White,
-                                fontSize = 15.sp,
+                                fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "${channels.size} broadcast channels",
+                                text = "${channels.size} Broadcast Channels",
                                 color = TvTextSecondary,
-                                fontSize = 12.sp
+                                fontSize = 12.sp,
+                                maxLines = 1
                             )
                         }
-
-                        Text(
-                            text = "Browse EPG  ›",
-                            color = if (isFocused) Color.White else Color(0xFF8E8E93),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
                     }
                 }
 
-                // Saved Layouts Card
+                // Saved Presets Card
                 TvFocusableCard(
                     onClick = { viewModel.navigateTo(AppScreen.SAVED_LAYOUTS) },
                     modifier = Modifier
                         .weight(1f)
-                        .height(180.dp),
+                        .height(84.dp),
                     focusedContainerColor = Color(0xFF222226),
                     unfocusedContainerColor = Color(0xFF141416),
                     focusedBorderColor = Color.White,
                     unfocusedBorderColor = Color(0xFF2C2C2E),
                     testTag = "btn_saved_layouts"
                 ) { isFocused ->
-                    Column(
+                    Row(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(20.dp),
-                        verticalArrangement = Arrangement.SpaceBetween
+                            .padding(horizontal = 18.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(36.dp)
+                                .size(40.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF222226)),
+                                .background(if (isFocused) Color.White else Color(0xFF222226)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 Icons.Default.GridView,
                                 contentDescription = "Layouts",
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
+                                tint = if (isFocused) Color.Black else Color.White,
+                                modifier = Modifier.size(22.dp)
                             )
                         }
+
+                        Spacer(modifier = Modifier.width(14.dp))
 
                         Column {
                             Text(
                                 text = "SAVED PRESETS",
                                 color = Color.White,
-                                fontSize = 15.sp,
+                                fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Sports, News, Quad grids",
+                                text = "${savedLayouts.size} Saved Combinations",
                                 color = TvTextSecondary,
-                                fontSize = 12.sp
+                                fontSize = 12.sp,
+                                maxLines = 1
                             )
                         }
-
-                        Text(
-                            text = "Manage Presets  ›",
-                            color = if (isFocused) Color.White else Color(0xFF8E8E93),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
                     }
                 }
 
@@ -398,55 +396,51 @@ fun HomeScreen(
                 TvFocusableCard(
                     onClick = { viewModel.navigateTo(AppScreen.SETTINGS) },
                     modifier = Modifier
-                        .weight(0.9f)
-                        .height(180.dp),
+                        .weight(1f)
+                        .height(84.dp),
                     focusedContainerColor = Color(0xFF222226),
                     unfocusedContainerColor = Color(0xFF141416),
                     focusedBorderColor = Color.White,
                     unfocusedBorderColor = Color(0xFF2C2C2E),
                     testTag = "btn_settings"
                 ) { isFocused ->
-                    Column(
+                    Row(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(20.dp),
-                        verticalArrangement = Arrangement.SpaceBetween
+                            .padding(horizontal = 18.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(36.dp)
+                                .size(40.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF222226)),
+                                .background(if (isFocused) Color.White else Color(0xFF222226)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 Icons.Default.Settings,
                                 contentDescription = "Settings",
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
+                                tint = if (isFocused) Color.Black else Color.White,
+                                modifier = Modifier.size(22.dp)
                             )
                         }
+
+                        Spacer(modifier = Modifier.width(14.dp))
 
                         Column {
                             Text(
                                 text = "SETTINGS",
                                 color = Color.White,
-                                fontSize = 15.sp,
+                                fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Network & Tablo",
+                                text = "Tablo Device & Network",
                                 color = TvTextSecondary,
-                                fontSize = 12.sp
+                                fontSize = 12.sp,
+                                maxLines = 1
                             )
                         }
-
-                        Text(
-                            text = "Diagnostics  ›",
-                            color = if (isFocused) Color.White else Color(0xFF8E8E93),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
                     }
                 }
             }

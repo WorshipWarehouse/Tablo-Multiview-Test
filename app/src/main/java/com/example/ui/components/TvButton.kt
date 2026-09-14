@@ -55,13 +55,13 @@ fun TvButton(
     modifier: Modifier = Modifier,
     style: TvButtonStyle = TvButtonStyle.PRIMARY,
     enabled: Boolean = true,
-    minWidth: Dp = 64.dp,
-    minHeight: Dp = 44.dp,
+    minWidth: Dp = 48.dp,
+    minHeight: Dp = 36.dp,
     testTag: String = "tv_button",
     leadingIcon: (@Composable () -> Unit)? = null
 ) {
     var isFocused by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(targetValue = if (isFocused) 1.04f else 1.0f, label = "btn_scale")
+    val scale by animateFloatAsState(targetValue = if (isFocused) 1.03f else 1.0f, label = "btn_scale")
 
     val (bgColor, textColor, borderColor) = when (style) {
         TvButtonStyle.PRIMARY -> {
@@ -69,16 +69,16 @@ fun TvButton(
             else Triple(Color(0xFFE5E5EA), Color.Black, Color.Transparent)
         }
         TvButtonStyle.AMBER -> {
-            if (isFocused) Triple(Color(0xFFE5E5EA), Color.Black, Color.White)
-            else Triple(Color(0xFF242426), Color.White, Color(0xFF3A3A3C))
+            if (isFocused) Triple(Color(0xFFFFD60A), Color.Black, Color.White)
+            else Triple(Color(0xFF2C2508), Color(0xFFFFD60A), Color(0xFF665510))
         }
         TvButtonStyle.SECONDARY -> {
-            if (isFocused) Triple(Color(0xFF2C2C2E), Color.White, Color.White)
-            else Triple(Color(0xFF18181A), Color(0xFFE5E5EA), Color(0xFF2C2C2E))
+            if (isFocused) Triple(Color(0xFF2C2C30), Color.White, Color.White)
+            else Triple(Color(0xFF18181C), Color(0xFFE5E5EA), Color(0xFF2C2C32))
         }
         TvButtonStyle.OUTLINE -> {
-            if (isFocused) Triple(Color(0xFF26262A), Color.White, Color.White)
-            else Triple(Color.Transparent, Color(0xFFD1D1D6), Color(0xFF38383A))
+            if (isFocused) Triple(Color(0xFF282830), Color.White, Color.White)
+            else Triple(Color.Transparent, Color(0xFFD1D1D6), Color(0xFF383842))
         }
     }
 
@@ -97,7 +97,7 @@ fun TvButton(
             .focusable(enabled = enabled)
             .onKeyEvent { keyEvent ->
                 if (keyEvent.type == KeyEventType.KeyUp &&
-                    (keyEvent.key == Key.DirectionCenter || keyEvent.key == Key.Enter)
+                    (keyEvent.key == Key.DirectionCenter || keyEvent.key == Key.Enter || keyEvent.key == Key.Spacebar)
                 ) {
                     onClick()
                     true
@@ -114,21 +114,25 @@ fun TvButton(
             .defaultMinSize(minWidth = minWidth, minHeight = minHeight)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
             if (leadingIcon != null) {
-                Box(modifier = Modifier.padding(end = 6.dp)) {
+                Box(
+                    modifier = Modifier.padding(end = 6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
                     leadingIcon()
                 }
             }
             Text(
                 text = text,
                 color = animatedText,
-                fontSize = 14.sp,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
+                softWrap = false,
                 overflow = TextOverflow.Ellipsis
             )
         }
