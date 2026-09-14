@@ -309,7 +309,7 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
         if (newMode.paneCount < oldMode.paneCount) {
             for (i in newMode.paneCount until 4) {
                 streamJobs[i]?.cancel()
-                val token = playerManager.stopPane(i)
+                val token = playerManager.releasePane(i)
                 if (device != null && !token.isNullOrBlank()) {
                     viewModelScope.launch {
                         apiClient.stopWatching(device.host, token, device.port)
@@ -358,7 +358,7 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
             for (i in 0 until 4) {
                 if (i != current.activePaneIndex) {
                     streamJobs[i]?.cancel()
-                    val token = playerManager.stopPane(i)
+                    val token = playerManager.releasePane(i)
                     if (device != null && !token.isNullOrBlank()) {
                         viewModelScope.launch {
                             apiClient.stopWatching(device.host, token, device.port)

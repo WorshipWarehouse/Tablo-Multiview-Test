@@ -493,6 +493,27 @@ class TabloApiClient(
                 } catch (_: Exception) {}
             }
 
+            // Strategy 5: Unauthenticated plain JSON POST (for legacy Tablos or unauthenticated firmware)
+            if (lastResponseCode != 200) {
+                try {
+                    val plainUrl = "http://$host:$port$path"
+                    val plainRequest = Request.Builder()
+                        .url(plainUrl)
+                        .post("{}".toRequestBody(jsonMediaType))
+                        .header("Content-Type", "application/json")
+                        .header("Accept", "application/json, */*")
+                        .header("User-Agent", TabloAuthService.LOCAL_USER_AGENT)
+                        .build()
+
+                    httpClient.newCall(plainRequest).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val body = response.body?.string() ?: ""
+                            return@withContext parseWatchResponse(body, cleanChannelId, host, port)
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+
             if (lastResponseCode == 401) {
                 return@withContext Result.failure(
                     Exception("Device rejected watch request (401). Please verify you are signed into your Tablo account.")

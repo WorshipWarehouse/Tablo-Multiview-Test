@@ -8,12 +8,17 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,9 +28,11 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -49,8 +56,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -104,31 +113,64 @@ fun MultiviewScreen(
     val state by viewModel.multiviewState.collectAsState()
     val allChannels by viewModel.channelRepository.channels.collectAsState()
 
+    var showHud by remember { mutableStateOf(true) }
+    var hudVersion by remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+    fun pingHud() {
+        showHud = true
+        hudVersion = System.currentTimeMillis()
+    }
+
+    LaunchedEffect(hudVersion) {
+        if (showHud) {
+            delay(3500)
+            showHud = false
+        }
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(Color.Black)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                if (!showHud) pingHud() else viewModel.toggleActionMenu()
+            }
             .onKeyEvent { keyEvent ->
                 if (keyEvent.type == KeyEventType.KeyUp) {
                     when (keyEvent.key) {
                         Key.One, Key.NumPad1 -> {
                             viewModel.changeLayoutMode(MultiviewLayoutMode.ONE_PANE)
+                            pingHud()
                             true
                         }
                         Key.Two, Key.NumPad2 -> {
                             viewModel.changeLayoutMode(MultiviewLayoutMode.TWO_PANE)
+                            pingHud()
                             true
                         }
                         Key.Three, Key.NumPad3 -> {
                             viewModel.changeLayoutMode(MultiviewLayoutMode.THREE_PANE)
+                            pingHud()
                             true
                         }
                         Key.Four, Key.NumPad4 -> {
                             viewModel.changeLayoutMode(MultiviewLayoutMode.FOUR_PANE)
+                            pingHud()
                             true
                         }
                         Key.M, Key.Menu -> {
                             viewModel.toggleActionMenu()
+                            true
+                        }
+                        Key.DirectionCenter, Key.Enter, Key.Spacebar -> {
+                            if (!showHud) {
+                                pingHud()
+                            } else {
+                                viewModel.toggleActionMenu()
+                            }
                             true
                         }
                         else -> false
@@ -142,8 +184,11 @@ fun MultiviewScreen(
                 SinglePaneLayout(
                     paneState = state.panes[state.activePaneIndex],
                     isActive = true,
+                    showOverlay = showHud,
                     onFocus = {},
-                    onClick = { viewModel.toggleActionMenu() },
+                    onClick = {
+                        if (!showHud) pingHud() else viewModel.toggleActionMenu()
+                    },
                     onRetry = { viewModel.retryPaneStream(state.activePaneIndex) },
                     viewModel = viewModel
                 )
@@ -152,8 +197,14 @@ fun MultiviewScreen(
                 TwoPaneLayout(
                     panes = state.panes.take(2),
                     activePaneIndex = state.activePaneIndex,
-                    onFocus = { viewModel.setActivePane(it) },
-                    onClick = { viewModel.toggleActionMenu() },
+                    showOverlay = showHud,
+                    onFocus = {
+                        viewModel.setActivePane(it)
+                        pingHud()
+                    },
+                    onClick = {
+                        if (!showHud) pingHud() else viewModel.toggleActionMenu()
+                    },
                     onRetry = { viewModel.retryPaneStream(it) },
                     viewModel = viewModel
                 )
@@ -162,8 +213,14 @@ fun MultiviewScreen(
                 ThreePaneLayout(
                     panes = state.panes.take(3),
                     activePaneIndex = state.activePaneIndex,
-                    onFocus = { viewModel.setActivePane(it) },
-                    onClick = { viewModel.toggleActionMenu() },
+                    showOverlay = showHud,
+                    onFocus = {
+                        viewModel.setActivePane(it)
+                        pingHud()
+                    },
+                    onClick = {
+                        if (!showHud) pingHud() else viewModel.toggleActionMenu()
+                    },
                     onRetry = { viewModel.retryPaneStream(it) },
                     viewModel = viewModel
                 )
@@ -172,90 +229,100 @@ fun MultiviewScreen(
                 FourPaneGrid(
                     panes = state.panes,
                     activePaneIndex = state.activePaneIndex,
-                    onFocus = { viewModel.setActivePane(it) },
-                    onClick = { viewModel.toggleActionMenu() },
+                    showOverlay = showHud,
+                    onFocus = {
+                        viewModel.setActivePane(it)
+                        pingHud()
+                    },
+                    onClick = {
+                        if (!showHud) pingHud() else viewModel.toggleActionMenu()
+                    },
                     onRetry = { viewModel.retryPaneStream(it) },
                     viewModel = viewModel
                 )
             }
         }
 
-        // Floating Screen Layout Switcher Bar (Quick 1, 2, 3, 4 Screens Switcher)
-        if (!state.isActionMenuOpen && !state.isChannelPickerOpen && !state.isSaveLayoutDialogOpen) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 16.dp)
+        // Minimal Auto-Hiding Bottom HUD: Only visible when active, never gets in the way of video
+        AnimatedVisibility(
+            visible = showHud && !state.isActionMenuOpen && !state.isChannelPickerOpen && !state.isSaveLayoutDialogOpen,
+            enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
+            exit = fadeOut() + slideOutVertically(targetOffsetY = { it }),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 16.dp)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color(0xF0121214),
+                border = BorderStroke(1.dp, Color(0xFF2C2C2E)),
+                shadowElevation = 8.dp
             ) {
-                Surface(
-                    shape = RoundedCornerShape(24.dp),
-                    color = Color(0xEE141416),
-                    border = BorderStroke(1.dp, Color(0xFF38383A)),
-                    shadowElevation = 8.dp
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "SCREENS:",
-                            color = TvTextSecondary,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.5.sp,
-                            modifier = Modifier.padding(start = 6.dp, end = 2.dp)
-                        )
-
-                        MultiviewLayoutMode.values().forEach { mode ->
-                            val isSelected = state.layoutMode == mode
-                            val label = when (mode) {
-                                MultiviewLayoutMode.ONE_PANE -> "1 Screen"
-                                MultiviewLayoutMode.TWO_PANE -> "2 Screens"
-                                MultiviewLayoutMode.THREE_PANE -> "3 Screens"
-                                MultiviewLayoutMode.FOUR_PANE -> "4 Screens"
-                            }
-
-                            TvButton(
-                                text = label,
-                                onClick = { viewModel.changeLayoutMode(mode) },
-                                style = if (isSelected) TvButtonStyle.PRIMARY else TvButtonStyle.OUTLINE,
-                                modifier = Modifier.height(34.dp)
-                            )
+                    // Minimal 1, 2, 3, 4 Screen Selector Pills
+                    MultiviewLayoutMode.values().forEach { mode ->
+                        val isSelected = state.layoutMode == mode
+                        val label = when (mode) {
+                            MultiviewLayoutMode.ONE_PANE -> "1"
+                            MultiviewLayoutMode.TWO_PANE -> "2"
+                            MultiviewLayoutMode.THREE_PANE -> "3"
+                            MultiviewLayoutMode.FOUR_PANE -> "4"
                         }
 
-                        Spacer(modifier = Modifier.width(4.dp))
-
                         TvButton(
-                            text = "Controls",
-                            onClick = { viewModel.toggleActionMenu() },
-                            style = TvButtonStyle.SECONDARY,
-                            modifier = Modifier.height(34.dp),
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.Tune,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                            }
-                        )
-
-                        TvButton(
-                            text = "Home",
-                            onClick = { viewModel.navigateTo(AppScreen.HOME) },
-                            style = TvButtonStyle.OUTLINE,
-                            modifier = Modifier.height(34.dp),
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.Home,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                            }
+                            text = label,
+                            onClick = {
+                                viewModel.changeLayoutMode(mode)
+                                pingHud()
+                            },
+                            style = if (isSelected) TvButtonStyle.PRIMARY else TvButtonStyle.OUTLINE,
+                            modifier = Modifier.size(width = 38.dp, height = 30.dp)
                         )
                     }
+
+                    Box(
+                        modifier = Modifier
+                            .height(18.dp)
+                            .width(1.dp)
+                            .background(Color(0xFF38383A))
+                    )
+
+                    TvButton(
+                        text = "Channels",
+                        onClick = {
+                            viewModel.openChannelPicker()
+                            pingHud()
+                        },
+                        style = TvButtonStyle.SECONDARY,
+                        modifier = Modifier.height(30.dp),
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.Tune,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(13.dp)
+                            )
+                        }
+                    )
+
+                    TvButton(
+                        text = "Home",
+                        onClick = { viewModel.navigateTo(AppScreen.HOME) },
+                        style = TvButtonStyle.OUTLINE,
+                        modifier = Modifier.height(30.dp),
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.Home,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(13.dp)
+                            )
+                        }
+                    )
                 }
             }
         }
@@ -297,6 +364,7 @@ fun MultiviewScreen(
 fun SinglePaneLayout(
     paneState: PaneState,
     isActive: Boolean,
+    showOverlay: Boolean,
     onFocus: () -> Unit,
     onClick: () -> Unit,
     onRetry: () -> Unit,
@@ -306,6 +374,7 @@ fun SinglePaneLayout(
         MultiviewVideoPane(
             paneState = paneState,
             isActive = isActive,
+            showOverlay = showOverlay,
             onFocus = onFocus,
             onClick = onClick,
             onRetry = onRetry,
@@ -319,6 +388,7 @@ fun SinglePaneLayout(
 fun TwoPaneLayout(
     panes: List<PaneState>,
     activePaneIndex: Int,
+    showOverlay: Boolean,
     onFocus: (Int) -> Unit,
     onClick: () -> Unit,
     onRetry: (Int) -> Unit,
@@ -329,6 +399,7 @@ fun TwoPaneLayout(
             MultiviewVideoPane(
                 paneState = pane,
                 isActive = pane.paneIndex == activePaneIndex,
+                showOverlay = showOverlay,
                 onFocus = { onFocus(pane.paneIndex) },
                 onClick = onClick,
                 onRetry = { onRetry(pane.paneIndex) },
@@ -345,6 +416,7 @@ fun TwoPaneLayout(
 fun ThreePaneLayout(
     panes: List<PaneState>,
     activePaneIndex: Int,
+    showOverlay: Boolean,
     onFocus: (Int) -> Unit,
     onClick: () -> Unit,
     onRetry: (Int) -> Unit,
@@ -356,6 +428,7 @@ fun ThreePaneLayout(
         MultiviewVideoPane(
             paneState = primaryPane,
             isActive = primaryPane.paneIndex == activePaneIndex,
+            showOverlay = showOverlay,
             onFocus = { onFocus(primaryPane.paneIndex) },
             onClick = onClick,
             onRetry = { onRetry(primaryPane.paneIndex) },
@@ -376,6 +449,7 @@ fun ThreePaneLayout(
                 MultiviewVideoPane(
                     paneState = secPane,
                     isActive = secPane.paneIndex == activePaneIndex,
+                    showOverlay = showOverlay,
                     onFocus = { onFocus(secPane.paneIndex) },
                     onClick = onClick,
                     onRetry = { onRetry(secPane.paneIndex) },
@@ -393,6 +467,7 @@ fun ThreePaneLayout(
 fun FourPaneGrid(
     panes: List<PaneState>,
     activePaneIndex: Int,
+    showOverlay: Boolean,
     onFocus: (Int) -> Unit,
     onClick: () -> Unit,
     onRetry: (Int) -> Unit,
@@ -406,6 +481,7 @@ fun FourPaneGrid(
                 MultiviewVideoPane(
                     paneState = pane,
                     isActive = pane.paneIndex == activePaneIndex,
+                    showOverlay = showOverlay,
                     onFocus = { onFocus(pane.paneIndex) },
                     onClick = onClick,
                     onRetry = { onRetry(pane.paneIndex) },
@@ -422,6 +498,7 @@ fun FourPaneGrid(
                 MultiviewVideoPane(
                     paneState = pane,
                     isActive = pane.paneIndex == activePaneIndex,
+                    showOverlay = showOverlay,
                     onFocus = { onFocus(pane.paneIndex) },
                     onClick = onClick,
                     onRetry = { onRetry(pane.paneIndex) },
@@ -440,21 +517,27 @@ fun FourPaneGrid(
 fun MultiviewVideoPane(
     paneState: PaneState,
     isActive: Boolean,
+    showOverlay: Boolean,
     onFocus: () -> Unit,
     onClick: () -> Unit,
     onRetry: () -> Unit,
     viewModel: TabloAppViewModel,
     modifier: Modifier = Modifier
 ) {
-    // Grey border signifies which pane has audio & focus; no audio/mute buttons per user direction
-    val borderColor = if (isActive) TvBorderGrey else Color(0xFF1C1C1E)
-    val borderWidth = if (isActive) 3.dp else 1.dp
+    val isSinglePane = viewModel.multiviewState.value.layoutMode == MultiviewLayoutMode.ONE_PANE
+    val borderModifier = if (isSinglePane) {
+        Modifier
+    } else if (isActive) {
+        Modifier.border(2.dp, TvBorderGrey)
+    } else {
+        Modifier
+    }
 
     Box(
         modifier = modifier
             .testTag("pane_${paneState.paneIndex}")
             .background(Color.Black)
-            .border(borderWidth, borderColor)
+            .then(borderModifier)
             .onFocusChanged { if (it.isFocused) onFocus() }
             .focusable()
             .onKeyEvent { keyEvent ->
@@ -480,6 +563,9 @@ fun MultiviewVideoPane(
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
                     useController = false
+                    keepScreenOn = true
+                    setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
+                    setShutterBackgroundColor(android.graphics.Color.TRANSPARENT)
                     player = viewModel.playerManager.getPlayer(paneState.paneIndex)
                 }
             },
@@ -492,46 +578,53 @@ fun MultiviewVideoPane(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Minimalist Channel Header Overlay (Unobtrusive & Clean)
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Black.copy(alpha = 0.75f),
-                            Color.Transparent
+        // Minimalist Channel Header Overlay: Only visible when requested / user interaction
+        AnimatedVisibility(
+            visible = showOverlay,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.TopCenter)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Black.copy(alpha = 0.65f),
+                                Color.Transparent
+                            )
                         )
                     )
-                )
-                .padding(horizontal = 12.dp, vertical = 8.dp)
-        ) {
-            Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = paneState.channel?.channelNumberFormatted ?: "PANE ${paneState.paneIndex + 1}",
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = paneState.channel?.network?.ifBlank { paneState.channel?.callSign } ?: "Select Channel",
-                        color = Color(0xFFE5E5EA),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = paneState.channel?.channelNumberFormatted ?: "PANE ${paneState.paneIndex + 1}",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = paneState.channel?.network?.ifBlank { paneState.channel?.callSign } ?: "Select Channel",
+                            color = Color(0xFFE5E5EA),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
 
-                val showTitle = paneState.airing?.title ?: paneState.channel?.displaySubtitle
-                if (!showTitle.isNullOrBlank()) {
-                    Text(
-                        text = showTitle,
-                        color = TvTextSecondary,
-                        fontSize = 11.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    val showTitle = paneState.airing?.title ?: paneState.channel?.displaySubtitle
+                    if (!showTitle.isNullOrBlank()) {
+                        Text(
+                            text = showTitle,
+                            color = TvTextSecondary,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
         }
@@ -543,20 +636,20 @@ fun MultiviewVideoPane(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.5f)),
+                    .background(Color.Black.copy(alpha = 0.4f)),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(28.dp),
+                        modifier = Modifier.size(26.dp),
                         color = TvCyanPrimary,
-                        strokeWidth = 3.dp
+                        strokeWidth = 2.5.dp
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = if (paneState.playbackState == StreamPlaybackState.LOADING) "Tuning live channel..." else "Buffering...",
                         color = TvTextPrimary,
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -627,13 +720,18 @@ fun MultiviewActionMenu(
             color = Color(0xFF141416),
             border = BorderStroke(1.dp, Color(0xFF38383A)),
             modifier = Modifier
-                .width(540.dp)
+                .widthIn(max = 500.dp)
+                .fillMaxWidth(0.92f)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
                 ) {}
         ) {
-            Column(modifier = Modifier.padding(24.dp)) {
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -643,7 +741,7 @@ fun MultiviewActionMenu(
                         Text(
                             text = "PANE ${state.activePaneIndex + 1} CONTROLS",
                             color = Color.White,
-                            fontSize = 17.sp,
+                            fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 0.5.sp
                         )
@@ -663,11 +761,11 @@ fun MultiviewActionMenu(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
                 // Action Buttons Grid
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     TvButton(
@@ -699,7 +797,7 @@ fun MultiviewActionMenu(
                 Text(
                     text = "CHOOSE SCREENS (1, 2, 3, or 4)",
                     color = TvTextSecondary,
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.5.sp
                 )
@@ -726,7 +824,7 @@ fun MultiviewActionMenu(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -784,8 +882,9 @@ fun QuickChannelPickerModal(
             color = Color(0xFF141416),
             border = BorderStroke(1.dp, Color(0xFF38383A)),
             modifier = Modifier
-                .width(480.dp)
-                .height(440.dp)
+                .widthIn(max = 480.dp)
+                .fillMaxWidth(0.90f)
+                .heightIn(max = 440.dp)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null

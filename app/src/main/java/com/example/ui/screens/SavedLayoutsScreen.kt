@@ -214,7 +214,7 @@ fun SavedLayoutCardItem(
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TvButton(
-                    text = "Launch Multiview",
+                    text = "Launch",
                     onClick = onLaunch,
                     style = if (isFocused) TvButtonStyle.PRIMARY else TvButtonStyle.SECONDARY,
                     modifier = Modifier.height(40.dp),
