@@ -168,7 +168,7 @@ fun ChannelGuideScreen(
                         },
                         onWatchMultiview = {
                             viewModel.launchMultiview(
-                                mode = MultiviewLayoutMode.FOUR_PANE,
+                                mode = MultiviewLayoutMode.TWO_PANE,
                                 channels = listOf(channel),
                                 initialActivePane = 0
                             )

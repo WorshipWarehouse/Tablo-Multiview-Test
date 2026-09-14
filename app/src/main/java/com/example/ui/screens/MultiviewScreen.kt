@@ -37,6 +37,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -415,11 +416,26 @@ fun LeanbackBottomControlBar(
                     }
                 }
 
-                // Grid layout quick toggles
+                // Grid layout quick toggles & Add View
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // Add View quick action (if not yet in 4-pane)
+                    if (state.layoutMode != MultiviewLayoutMode.FOUR_PANE) {
+                        TvButton(
+                            text = "+ Add View",
+                            onClick = {
+                                viewModel.addNextView()
+                                onPingHud()
+                            },
+                            style = TvButtonStyle.AMBER,
+                            modifier = Modifier.height(34.dp),
+                            leadingIcon = { Icon(Icons.Default.Add, contentDescription = "Add View", tint = Color.Black, modifier = Modifier.size(16.dp)) },
+                            testTag = "btn_hud_add_view"
+                        )
+                    }
+
                     MultiviewLayoutMode.values().forEach { mode ->
                         val isSelected = state.layoutMode == mode
                         val label = when (mode) {
@@ -691,6 +707,62 @@ fun MultiviewVideoPane(
 
     var lastTapTime by remember { mutableLongStateOf(0L) }
 
+    if (paneState.channel == null) {
+        Box(
+            modifier = modifier
+                .testTag("empty_pane_${paneState.paneIndex}")
+                .background(Color(0xFF141418))
+                .then(borderModifier)
+                .onFocusChanged { if (it.isFocused) onFocus() }
+                .focusable()
+                .clickable { viewModel.openChannelPicker(paneState.paneIndex) },
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF26262E)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = "Add Channel",
+                        tint = TvCyanPrimary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "View ${paneState.paneIndex + 1} Available",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Tap to choose a live broadcast",
+                    color = TvTextSecondary,
+                    fontSize = 11.sp
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                TvButton(
+                    text = "+ Add Channel",
+                    onClick = { viewModel.openChannelPicker(paneState.paneIndex) },
+                    style = TvButtonStyle.PRIMARY,
+                    modifier = Modifier.height(34.dp),
+                    testTag = "btn_add_ch_pane_${paneState.paneIndex}"
+                )
+            }
+        }
+        return
+    }
+
     Box(
         modifier = modifier
             .testTag("pane_${paneState.paneIndex}")
@@ -840,6 +912,15 @@ fun MultiviewVideoPane(
                         testTag = "btn_audio_pane_${paneState.paneIndex}"
                     )
 
+                    // Change Channel
+                    IconButtonWithTooltip(
+                        icon = Icons.Default.List,
+                        label = "Channel",
+                        tint = Color.White,
+                        onClick = { viewModel.openChannelPicker(paneState.paneIndex) },
+                        testTag = "btn_ch_pane_${paneState.paneIndex}"
+                    )
+
                     // Stream Quality Selector Button
                     IconButtonWithTooltip(
                         icon = Icons.Default.Speed,
@@ -857,6 +938,17 @@ fun MultiviewVideoPane(
                         onClick = { viewModel.togglePaneDiagnostics(paneState.paneIndex) },
                         testTag = "btn_diag_pane_${paneState.paneIndex}"
                     )
+
+                    // Close pane / Free tuner (in multi-pane mode)
+                    if (!isSinglePane) {
+                        IconButtonWithTooltip(
+                            icon = Icons.Default.Close,
+                            label = "Close",
+                            tint = Color(0xFFFF453A),
+                            onClick = { viewModel.clearPane(paneState.paneIndex) },
+                            testTag = "btn_close_pane_${paneState.paneIndex}"
+                        )
+                    }
 
                     // Fullscreen Toggle
                     IconButtonWithTooltip(
@@ -897,7 +989,7 @@ fun MultiviewVideoPane(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = if (paneState.playbackState == StreamPlaybackState.LOADING) "Tuning live channel..." else "Anti-buffering sync...",
+                        text = if (paneState.playbackState == StreamPlaybackState.LOADING) "Tuning live channel..." else "Buffering stream...",
                         color = TvTextPrimary,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
@@ -933,17 +1025,25 @@ fun MultiviewVideoPane(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = paneState.errorMessage ?: "Check tuner availability",
+                        text = paneState.errorMessage ?: "Check tuner availability on Tablo",
                         color = TvTextSecondary,
                         fontSize = 11.sp
                     )
                     Spacer(modifier = Modifier.height(10.dp))
-                    TvButton(
-                        text = "Retry Stream",
-                        onClick = onRetry,
-                        style = TvButtonStyle.AMBER,
-                        modifier = Modifier.height(36.dp)
-                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TvButton(
+                            text = "Retry",
+                            onClick = onRetry,
+                            style = TvButtonStyle.AMBER,
+                            modifier = Modifier.height(36.dp)
+                        )
+                        TvButton(
+                            text = "Pick Channel",
+                            onClick = { viewModel.openChannelPicker(paneState.paneIndex) },
+                            style = TvButtonStyle.SECONDARY,
+                            modifier = Modifier.height(36.dp)
+                        )
+                    }
                 }
             }
         }
@@ -1205,19 +1305,32 @@ fun MultiviewActionMenu(
                         leadingIcon = { Icon(Icons.Default.List, contentDescription = null, tint = Color.Black) }
                     )
 
-                    TvButton(
-                        text = if (state.isFullScreenSingle) "Restore Grid" else "Full Screen",
-                        onClick = { viewModel.toggleFullScreenActivePane() },
-                        style = TvButtonStyle.SECONDARY,
-                        modifier = Modifier.weight(1f),
-                        leadingIcon = {
-                            Icon(
-                                if (state.isFullScreenSingle) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
-                                contentDescription = null,
-                                tint = Color.White
-                            )
-                        }
-                    )
+                    if (state.layoutMode != MultiviewLayoutMode.FOUR_PANE) {
+                        TvButton(
+                            text = "+ Add Another View",
+                            onClick = {
+                                viewModel.addNextView()
+                                onDismiss()
+                            },
+                            style = TvButtonStyle.AMBER,
+                            modifier = Modifier.weight(1f),
+                            leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, tint = Color.Black) }
+                        )
+                    } else {
+                        TvButton(
+                            text = if (state.isFullScreenSingle) "Restore Grid" else "Full Screen",
+                            onClick = { viewModel.toggleFullScreenActivePane() },
+                            style = TvButtonStyle.SECONDARY,
+                            modifier = Modifier.weight(1f),
+                            leadingIcon = {
+                                Icon(
+                                    if (state.isFullScreenSingle) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                                    contentDescription = null,
+                                    tint = Color.White
+                                )
+                            }
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
@@ -1226,20 +1339,25 @@ fun MultiviewActionMenu(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
+                    if (state.layoutMode != MultiviewLayoutMode.ONE_PANE) {
+                        TvButton(
+                            text = "Close View (Free Tuner)",
+                            onClick = {
+                                viewModel.clearPane(state.activePaneIndex)
+                                onDismiss()
+                            },
+                            style = TvButtonStyle.OUTLINE,
+                            modifier = Modifier.weight(1f),
+                            leadingIcon = { Icon(Icons.Default.Close, contentDescription = null, tint = Color(0xFFFF453A)) }
+                        )
+                    }
+
                     TvButton(
                         text = "Swap Positions",
                         onClick = { viewModel.startReorderMode() },
                         style = TvButtonStyle.SECONDARY,
                         modifier = Modifier.weight(1f),
                         leadingIcon = { Icon(Icons.Default.SwapHoriz, contentDescription = null, tint = Color.White) }
-                    )
-
-                    TvButton(
-                        text = "Picture-in-Picture",
-                        onClick = { viewModel.requestPictureInPicture() },
-                        style = TvButtonStyle.SECONDARY,
-                        modifier = Modifier.weight(1f),
-                        leadingIcon = { Icon(Icons.Default.FitScreen, contentDescription = null, tint = Color.White) }
                     )
                 }
 

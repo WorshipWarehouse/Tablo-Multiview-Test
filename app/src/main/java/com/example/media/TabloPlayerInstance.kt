@@ -79,16 +79,18 @@ class TabloPlayerInstance(
         // Shared 64KB segment allocator
         val allocator = DefaultAllocator(true, C.DEFAULT_BUFFER_SEGMENT_SIZE)
 
-        // Bounded LoadControl prevents multi-player buffer allocation spikes
+        // Robust LoadControl: 8s min buffer prevents rapid re-buffering on 2-4s Tablo HLS chunks.
+        // Bounded max buffer (20s) avoids RAM pressure while ensuring smooth playback.
         val loadControl = DefaultLoadControl.Builder()
             .setAllocator(allocator)
             .setBufferDurationsMs(
-                /* minBufferMs = */ 2000,
-                /* maxBufferMs = */ 6500,
-                /* bufferForPlaybackMs = */ 500,
-                /* bufferForPlaybackAfterRebufferMs = */ 1200
+                /* minBufferMs = */ 8000,
+                /* maxBufferMs = */ 20000,
+                /* bufferForPlaybackMs = */ 1500,
+                /* bufferForPlaybackAfterRebufferMs = */ 3000
             )
-            .setTargetBufferBytes(3 * 1024 * 1024) // 3MB target prevents RAM exhaustion
+            .setBackBuffer(2000, true)
+            .setTargetBufferBytes(16 * 1024 * 1024) // 16MB allocation accommodates 1080i ATSC streams
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
 
@@ -138,13 +140,23 @@ class TabloPlayerInstance(
                     }
 
                     override fun onPlayerError(error: PlaybackException) {
-                        Log.e(tag, "ExoPlayer error on pane $paneIndex: ${error.errorCodeName} - ${error.message}", error)
+                        Log.e(tag, "ExoPlayer error on pane $paneIndex: ${error.errorCodeName} (${error.errorCode}) - ${error.message}", error)
+                        
+                        // Robust live HLS recovery: if stream fell behind live window, auto-seek to live edge
+                        if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
+                            Log.w(tag, "Pane $paneIndex fell behind live window, automatically seeking to live edge...")
+                            exoPlayer?.seekToDefaultPosition()
+                            exoPlayer?.prepare()
+                            return
+                        }
+
                         if (autoRetryCount < maxAutoRetries && !currentStreamUrl.isNullOrBlank()) {
                             autoRetryCount++
-                            Log.i(tag, "Attempting auto-recovery retry $autoRetryCount for pane $paneIndex in 1200ms...")
+                            val delayMs = (autoRetryCount * 1500L).coerceAtMost(5000L)
+                            Log.i(tag, "Attempting auto-recovery retry $autoRetryCount for pane $paneIndex in ${delayMs}ms...")
                             handler.postDelayed({
                                 retry()
-                            }, 1200L)
+                            }, delayMs)
                         } else {
                             onStateChange(paneIndex, StreamPlaybackState.ERROR, error.message ?: "Stream playback failed")
                         }
@@ -157,11 +169,14 @@ class TabloPlayerInstance(
 
     private fun startDiagnosticsPolling() {
         handler.removeCallbacks(diagnosticsRunnable)
-        handler.postDelayed(diagnosticsRunnable, 1500L)
+        handler.postDelayed(diagnosticsRunnable, 2000L)
     }
 
     private fun pollDiagnostics() {
         val player = exoPlayer ?: return
+        if (player.playbackState != Player.STATE_READY && player.playbackState != Player.STATE_BUFFERING) {
+            return
+        }
         val format: Format? = player.videoFormat
         val bitrate = ((format?.bitrate?.takeIf { it > 0 } ?: format?.peakBitrate?.takeIf { it > 0 } ?: 0)) / 1000
         val res = if (format != null && format.width > 0) "${format.width}x${format.height}" else "--"
@@ -193,22 +208,23 @@ class TabloPlayerInstance(
 
         val httpDataSourceFactory = DefaultHttpDataSource.Factory()
             .setUserAgent(com.example.data.tablo.TabloAuthService.LOCAL_USER_AGENT)
-            .setConnectTimeoutMs(10000)
-            .setReadTimeoutMs(15000)
+            .setConnectTimeoutMs(15000)
+            .setReadTimeoutMs(25000)
             .setAllowCrossProtocolRedirects(true)
             .setKeepPostFor302Redirects(true)
 
         val dataSourceFactory = DefaultDataSource.Factory(context, httpDataSourceFactory)
 
-        // Tablo ATSC live HLS configuration with 3000ms target offset
+        // Tablo ATSC live HLS configuration: 8s live target offset provides headroom
+        // for live hardware transcoding without stalling or triggering anti-buffering sync.
         val mediaItem = MediaItem.Builder()
             .setUri(Uri.parse(url))
             .setMimeType(MimeTypes.APPLICATION_M3U8)
             .setLiveConfiguration(
                 MediaItem.LiveConfiguration.Builder()
-                    .setTargetOffsetMs(3000)
-                    .setMinOffsetMs(1500)
-                    .setMaxOffsetMs(7500)
+                    .setTargetOffsetMs(8000)
+                    .setMinOffsetMs(4000)
+                    .setMaxOffsetMs(25000)
                     .build()
             )
             .build()

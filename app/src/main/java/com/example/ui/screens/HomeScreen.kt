@@ -671,6 +671,7 @@ fun HomeScreen(
                         TvFocusableCard(
                             onClick = {
                                 viewModel.launchMultiview(
+                                    mode = MultiviewLayoutMode.ONE_PANE,
                                     channels = listOf(channel),
                                     initialActivePane = 0
                                 )

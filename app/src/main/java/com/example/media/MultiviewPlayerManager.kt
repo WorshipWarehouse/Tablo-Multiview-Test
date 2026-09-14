@@ -22,8 +22,7 @@ class MultiviewPlayerManager(
     private val individualMuteOverrides = BooleanArray(4) { false }
 
     fun getPlayer(paneIndex: Int): ExoPlayer? {
-        ensurePlayerExists(paneIndex)
-        return players[paneIndex]?.exoPlayer
+        return players.getOrNull(paneIndex)?.exoPlayer
     }
 
     private fun ensurePlayerExists(paneIndex: Int): TabloPlayerInstance {

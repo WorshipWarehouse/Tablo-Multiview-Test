@@ -101,7 +101,7 @@ fun TabloAppRoot(
                     multiviewState.isChannelPickerOpen -> viewModel.closeChannelPicker()
                     multiviewState.isActionMenuOpen -> viewModel.toggleActionMenu(false)
                     multiviewState.isSaveLayoutDialogOpen -> viewModel.closeSaveLayoutDialog()
-                    multiviewState.isFullScreenSingle -> viewModel.toggleFullScreenActivePane()
+                    multiviewState.isFullScreenSingle && multiviewState.layoutMode != MultiviewLayoutMode.ONE_PANE -> viewModel.toggleFullScreenActivePane()
                     else -> viewModel.navigateTo(AppScreen.HOME)
                 }
             }

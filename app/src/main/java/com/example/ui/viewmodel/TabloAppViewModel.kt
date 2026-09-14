@@ -211,7 +211,7 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
         val assignedChannels = mutableListOf<TabloChannel?>()
         for (i in 0 until 4) {
             val chId = lastChannelIds.getOrNull(i)
-            val channel = allChannels.find { it.id == chId } ?: allChannels.getOrNull(i)
+            val channel = allChannels.find { it.id == chId } ?: if (i < lastMode.paneCount && lastChannelIds.isEmpty()) allChannels.getOrNull(i) else null
             assignedChannels.add(channel)
         }
 
@@ -226,7 +226,7 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
 
         for (i in 0 until 4) {
             val chId = lastChannelIds.getOrNull(i)
-            val channel = allChannels.find { it.id == chId } ?: allChannels.getOrNull(i)
+            val channel = allChannels.find { it.id == chId } ?: if (i < mode.paneCount && lastChannelIds.isEmpty()) allChannels.getOrNull(i) else null
             assignedChannels.add(channel)
         }
 
@@ -235,13 +235,19 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun launchMultiview(
-        mode: MultiviewLayoutMode = MultiviewLayoutMode.FOUR_PANE,
+        mode: MultiviewLayoutMode = MultiviewLayoutMode.ONE_PANE,
         channels: List<TabloChannel?> = emptyList(),
         initialActivePane: Int = 0
     ) {
         val allChannels = channelRepository.channels.value
         val initialPanes = (0 until 4).map { idx ->
-            val channel = channels.getOrNull(idx) ?: allChannels.getOrNull(idx)
+            val channel = if (idx < channels.size) {
+                channels[idx]
+            } else if (channels.isEmpty() && idx < mode.paneCount) {
+                allChannels.getOrNull(idx)
+            } else {
+                null
+            }
             PaneState(
                 paneIndex = idx,
                 channel = channel,
@@ -260,7 +266,7 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
 
         _currentScreen.value = AppScreen.MULTIVIEW
 
-        // Start playback for all panes active in this mode
+        // Start playback only for active panes that have an assigned channel
         for (i in 0 until mode.paneCount) {
             val ch = initialPanes[i].channel
             if (ch != null) {
@@ -293,7 +299,7 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
             isActionMenuOpen = false
         )
 
-        // Only start stream for active pane; other 3 players continue without interruption!
+        // Only start stream for active pane; other players continue without interruption!
         startStreamForPane(activeIndex, channel)
         saveCurrentSession()
     }
@@ -320,26 +326,18 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
                 val token = playerManager.releasePane(i)
                 if (device != null && !token.isNullOrBlank()) {
                     viewModelScope.launch {
-                        apiClient.stopWatching(device.host, token, device.port)
+                        try {
+                            apiClient.stopWatching(device.host, token, device.port)
+                        } catch (_: Exception) {}
                     }
                 }
                 updatePanePlaybackState(i, StreamPlaybackState.IDLE, null)
             }
         } else {
-            // Ensure newly visible panes have streams running
-            val allChannels = channelRepository.channels.value
+            // For newly visible panes, only start stream if they already have an assigned channel
             for (i in 0 until newMode.paneCount) {
                 val pane = _multiviewState.value.panes[i]
-                if (pane.channel == null && allChannels.isNotEmpty()) {
-                    val fallbackChannel = allChannels.getOrNull(i)
-                    if (fallbackChannel != null) {
-                        val newPanes = _multiviewState.value.panes.map {
-                            if (it.paneIndex == i) it.copy(channel = fallbackChannel) else it
-                        }
-                        _multiviewState.value = _multiviewState.value.copy(panes = newPanes)
-                        startStreamForPane(i, fallbackChannel)
-                    }
-                } else if (pane.channel != null && (pane.playbackState == StreamPlaybackState.IDLE || pane.playbackState == StreamPlaybackState.ERROR)) {
+                if (pane.channel != null && (pane.playbackState == StreamPlaybackState.IDLE || pane.playbackState == StreamPlaybackState.ERROR)) {
                     startStreamForPane(i, pane.channel)
                 }
             }
@@ -473,6 +471,9 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
     private fun updatePaneDiagnostics(paneIndex: Int, diagnostics: com.example.model.StreamDiagnostics) {
         val panes = _multiviewState.value.panes
         if (paneIndex in panes.indices) {
+            // Only emit Compose state updates if diagnostics overlay is visibly enabled for this pane
+            // This stops wasteful recompositions and GC pressure every 1.5s during regular viewing
+            if (!panes[paneIndex].showDiagnostics) return
             val updated = panes.map { pane ->
                 if (pane.paneIndex == paneIndex) {
                     pane.copy(diagnostics = diagnostics)
@@ -536,8 +537,10 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
         _multiviewState.value = _multiviewState.value.copy(isActionMenuOpen = newState)
     }
 
-    fun openChannelPicker() {
+    fun openChannelPicker(targetPaneIndex: Int? = null) {
+        val target = targetPaneIndex ?: _multiviewState.value.activePaneIndex
         _multiviewState.value = _multiviewState.value.copy(
+            activePaneIndex = target,
             isChannelPickerOpen = true,
             isActionMenuOpen = false
         )
@@ -545,6 +548,54 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
 
     fun closeChannelPicker() {
         _multiviewState.value = _multiviewState.value.copy(isChannelPickerOpen = false)
+    }
+
+    /**
+     * Incrementally add another screen/view to the layout (1 -> 2 -> 3 -> 4)
+     * and immediately open the channel picker for the newly added view.
+     */
+    fun addNextView() {
+        val currentMode = _multiviewState.value.layoutMode
+        val newMode = when (currentMode) {
+            MultiviewLayoutMode.ONE_PANE -> MultiviewLayoutMode.TWO_PANE
+            MultiviewLayoutMode.TWO_PANE -> MultiviewLayoutMode.THREE_PANE
+            MultiviewLayoutMode.THREE_PANE -> MultiviewLayoutMode.FOUR_PANE
+            MultiviewLayoutMode.FOUR_PANE -> return
+        }
+        changeLayoutMode(newMode)
+        // Focus the newly added pane and open channel picker so user can choose what to watch
+        val emptyPaneIdx = (0 until newMode.paneCount).firstOrNull { _multiviewState.value.panes[it].channel == null }
+            ?: (newMode.paneCount - 1)
+        openChannelPicker(emptyPaneIdx)
+    }
+
+    /**
+     * Clear and stop a specific pane to free the tuner on the Tablo device.
+     */
+    fun clearPane(paneIndex: Int) {
+        val device = deviceRepository.currentDevice.value
+        streamJobs[paneIndex]?.cancel()
+        val token = playerManager.releasePane(paneIndex)
+        if (device != null && !token.isNullOrBlank()) {
+            viewModelScope.launch {
+                try {
+                    apiClient.stopWatching(device.host, token, device.port)
+                } catch (_: Exception) {}
+            }
+        }
+        val updatedPanes = _multiviewState.value.panes.map { pane ->
+            if (pane.paneIndex == paneIndex) {
+                pane.copy(
+                    channel = null,
+                    streamUrl = null,
+                    streamToken = null,
+                    playbackState = StreamPlaybackState.IDLE,
+                    errorMessage = null
+                )
+            } else pane
+        }
+        _multiviewState.value = _multiviewState.value.copy(panes = updatedPanes)
+        saveCurrentSession()
     }
 
     fun setReorderMode(enabled: Boolean) {

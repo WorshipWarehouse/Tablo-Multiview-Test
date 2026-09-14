@@ -152,11 +152,11 @@ class TabloPreferences(context: Context) {
     }
 
     fun getLastLayoutMode(): MultiviewLayoutMode {
-        val modeStr = prefs.getString(KEY_LAST_LAYOUT_MODE, null) ?: return MultiviewLayoutMode.FOUR_PANE
+        val modeStr = prefs.getString(KEY_LAST_LAYOUT_MODE, null) ?: return MultiviewLayoutMode.ONE_PANE
         return try {
             MultiviewLayoutMode.valueOf(modeStr)
         } catch (_: Exception) {
-            MultiviewLayoutMode.FOUR_PANE
+            MultiviewLayoutMode.ONE_PANE
         }
     }
 
