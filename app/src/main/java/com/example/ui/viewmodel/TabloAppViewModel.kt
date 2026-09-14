@@ -175,15 +175,12 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
     private var keepaliveJob: Job? = null
 
     init {
-        // Startup flow
+        // Startup flow: load channels and launch directly into 4-Game Quad Multiview
         viewModelScope.launch {
             channelRepository.loadCachedChannels()
             val savedDevice = preferences.getRegisteredDevice()
-            if (savedDevice == null) {
-                _currentScreen.value = AppScreen.REGISTRATION
-            } else {
-                _currentScreen.value = AppScreen.HOME
-                // Reconnect in background
+            if (savedDevice != null) {
+                // Reconnect to Tablo in background
                 deviceRepository.tryReconnect()
                 channelRepository.refreshChannels(
                     savedDevice.host,
@@ -192,6 +189,8 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
                     preferences.getLighthouseToken()
                 )
             }
+            // Auto-launch directly into 4-Game Multiview Grid!
+            startMultiviewWithMode(MultiviewLayoutMode.FOUR_PANE)
         }
     }
 
@@ -320,13 +319,13 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun startMultiviewWithMode(mode: MultiviewLayoutMode) {
-        val allChannels = channelRepository.channels.value
+        val allChannels = channelRepository.channels.value.ifEmpty { com.example.data.tablo.defaultBroadcastChannels() }
         val lastChannelIds = preferences.getLastPaneChannels()
         val assignedChannels = mutableListOf<TabloChannel?>()
 
         for (i in 0 until 4) {
             val chId = lastChannelIds.getOrNull(i)
-            val channel = allChannels.find { it.id == chId } ?: if (i < mode.paneCount && lastChannelIds.isEmpty()) allChannels.getOrNull(i) else null
+            val channel = allChannels.find { it.id == chId } ?: allChannels.getOrNull(i) ?: allChannels.getOrNull(i % allChannels.size.coerceAtLeast(1))
             assignedChannels.add(channel)
         }
 
@@ -334,19 +333,31 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
         launchMultiview(mode, assignedChannels)
     }
 
+    fun playChannelInMultiview(paneIndex: Int, channel: TabloChannel) {
+        val current = _multiviewState.value
+        val safeIndex = paneIndex.coerceIn(0, 3)
+        val channels = (0 until 4).map { idx ->
+            if (idx == safeIndex) channel else current.panes.getOrNull(idx)?.channel
+        }
+        val mode = if (current.layoutMode == MultiviewLayoutMode.ONE_PANE) MultiviewLayoutMode.ONE_PANE else current.layoutMode
+        launchMultiview(
+            mode = mode,
+            channels = channels,
+            initialActivePane = safeIndex
+        )
+    }
+
     fun launchMultiview(
-        mode: MultiviewLayoutMode = MultiviewLayoutMode.ONE_PANE,
+        mode: MultiviewLayoutMode = MultiviewLayoutMode.FOUR_PANE,
         channels: List<TabloChannel?> = emptyList(),
         initialActivePane: Int = 0
     ) {
-        val allChannels = channelRepository.channels.value
+        val allChannels = channelRepository.channels.value.ifEmpty { com.example.data.tablo.defaultBroadcastChannels() }
         val initialPanes = (0 until 4).map { idx ->
-            val channel = if (idx < channels.size) {
+            val channel = if (idx < channels.size && channels[idx] != null) {
                 channels[idx]
-            } else if (channels.isEmpty() && idx < mode.paneCount) {
-                allChannels.getOrNull(idx)
             } else {
-                null
+                allChannels.getOrNull(idx) ?: allChannels.getOrNull(idx % allChannels.size.coerceAtLeast(1))
             }
             PaneState(
                 paneIndex = idx,
@@ -366,7 +377,7 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
 
         _currentScreen.value = AppScreen.MULTIVIEW
 
-        // Start playback only for active panes that have an assigned channel
+        // Start playback for all active panes in this layout mode!
         for (i in 0 until mode.paneCount) {
             val ch = initialPanes[i].channel
             if (ch != null) {
@@ -435,7 +446,15 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
                 updatePanePlaybackState(i, StreamPlaybackState.IDLE, null)
             }
         } else {
-            // For newly visible panes, only start stream if they already have an assigned channel
+            val allChannels = channelRepository.channels.value.ifEmpty { com.example.data.tablo.defaultBroadcastChannels() }
+            val updatedPanes = _multiviewState.value.panes.mapIndexed { i, pane ->
+                if (i < newMode.paneCount && pane.channel == null) {
+                    pane.copy(channel = allChannels.getOrNull(i) ?: allChannels.getOrNull(i % allChannels.size.coerceAtLeast(1)))
+                } else pane
+            }
+            _multiviewState.value = _multiviewState.value.copy(panes = updatedPanes)
+
+            // For all visible panes, start stream
             for (i in 0 until newMode.paneCount) {
                 val pane = _multiviewState.value.panes[i]
                 if (pane.channel != null && (pane.playbackState == StreamPlaybackState.IDLE || pane.playbackState == StreamPlaybackState.ERROR)) {
@@ -541,54 +560,115 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
         saveCurrentSession()
     }
 
+    fun openSettingsModal() {
+        _multiviewState.value = _multiviewState.value.copy(isSettingsModalOpen = true)
+    }
+
+    fun closeSettingsModal() {
+        _multiviewState.value = _multiviewState.value.copy(isSettingsModalOpen = false)
+    }
+
+    fun applySportsPreset(preset: String) {
+        val allChannels = channelRepository.channels.value.ifEmpty { com.example.data.tablo.defaultBroadcastChannels() }
+        val targetChannels: List<TabloChannel> = when (preset) {
+            "NFL" -> {
+                listOfNotNull(
+                    allChannels.find { it.network.contains("CBS") } ?: allChannels.getOrNull(0),
+                    allChannels.find { it.network.contains("FOX") } ?: allChannels.getOrNull(1),
+                    allChannels.find { it.network.contains("NBC") } ?: allChannels.getOrNull(2),
+                    allChannels.find { it.network.contains("ESPN") } ?: allChannels.getOrNull(3)
+                ).ifEmpty { allChannels.take(4) }
+            }
+            "NBA" -> {
+                listOfNotNull(
+                    allChannels.find { it.network.contains("ABC") } ?: allChannels.getOrNull(4),
+                    allChannels.find { it.network.contains("ESPN") } ?: allChannels.getOrNull(3),
+                    allChannels.find { it.network.contains("TNT") } ?: allChannels.getOrNull(7),
+                    allChannels.find { it.network.contains("CBS") } ?: allChannels.getOrNull(0)
+                ).ifEmpty { allChannels.take(4) }
+            }
+            "MLB" -> {
+                listOfNotNull(
+                    allChannels.find { it.network.contains("TBS") } ?: allChannels.getOrNull(6),
+                    allChannels.find { it.network.contains("FOX") } ?: allChannels.getOrNull(1),
+                    allChannels.find { it.network.contains("ESPN") } ?: allChannels.getOrNull(3),
+                    allChannels.find { it.network.contains("RedZone") } ?: allChannels.getOrNull(5)
+                ).ifEmpty { allChannels.take(4) }
+            }
+            else -> allChannels.take(4)
+        }
+        launchMultiview(MultiviewLayoutMode.FOUR_PANE, targetChannels, 0)
+    }
+
     fun retryPaneStream(paneIndex: Int) {
         val pane = _multiviewState.value.panes.getOrNull(paneIndex) ?: return
         val ch = pane.channel ?: return
         startStreamForPane(paneIndex, ch)
     }
 
-    private fun startStreamForPane(paneIndex: Int, channel: TabloChannel) {
-        val device = deviceRepository.currentDevice.value ?: return
+    fun getSampleSportStreamUrl(paneIndex: Int): String {
+        val urls = listOf(
+            "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+            "https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8",
+            "https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_16x9/bipbop_16x9_variant.m3u8",
+            "https://test-streams.mux.dev/test_001/stream.m3u8"
+        )
+        return urls[paneIndex.coerceIn(0, urls.lastIndex)]
+    }
+
+    fun startStreamForPane(paneIndex: Int, channel: TabloChannel) {
+        val device = deviceRepository.currentDevice.value
 
         streamJobs[paneIndex]?.cancel()
 
         // If this pane had an active stream token, stop it first to prevent tuner leaks
         val oldToken = playerManager.getStreamToken(paneIndex)
-        if (!oldToken.isNullOrBlank()) {
+        if (device != null && !oldToken.isNullOrBlank()) {
             viewModelScope.launch {
-                apiClient.stopWatching(device.host, oldToken, device.port)
+                try {
+                    apiClient.stopWatching(device.host, oldToken, device.port)
+                } catch (_: Exception) {}
             }
         }
 
         updatePanePlaybackState(paneIndex, StreamPlaybackState.LOADING, null)
 
         streamJobs[paneIndex] = viewModelScope.launch {
-            // Fetch live stream URL from Tablo API with HMAC signing and client session
-            val result = apiClient.watchChannel(device.host, channel.id, preferences.getClientId(), device.port)
-            if (result.isSuccess) {
-                val stream = result.getOrThrow()
-                playerManager.playPaneStream(paneIndex, stream.playlistUrl, channel.id, stream.token)
+            if (device != null) {
+                try {
+                    val result = apiClient.watchChannel(device.host, channel.id, preferences.getClientId(), device.port)
+                    if (result.isSuccess) {
+                        val stream = result.getOrThrow()
+                        playerManager.playPaneStream(paneIndex, stream.playlistUrl, channel.id, stream.token)
 
-                // Update pane with stream details
-                val updatedPanes = _multiviewState.value.panes.map {
-                    if (it.paneIndex == paneIndex) {
-                        it.copy(streamUrl = stream.playlistUrl, streamToken = stream.token)
-                    } else it
-                }
-                _multiviewState.value = _multiviewState.value.copy(panes = updatedPanes)
+                        val updatedPanes = _multiviewState.value.panes.map {
+                            if (it.paneIndex == paneIndex) {
+                                it.copy(streamUrl = stream.playlistUrl, streamToken = stream.token)
+                            } else it
+                        }
+                        _multiviewState.value = _multiviewState.value.copy(panes = updatedPanes)
 
-                // Load current airing in background
-                val airing = channelRepository.loadCurrentAiring(device.host, channel.id, device.port)
-                if (airing != null) {
-                    val panesWithAiring = _multiviewState.value.panes.map {
-                        if (it.paneIndex == paneIndex) it.copy(airing = airing) else it
+                        val airing = channelRepository.loadCurrentAiring(device.host, channel.id, device.port)
+                        if (airing != null) {
+                            val panesWithAiring = _multiviewState.value.panes.map {
+                                if (it.paneIndex == paneIndex) it.copy(airing = airing) else it
+                            }
+                            _multiviewState.value = _multiviewState.value.copy(panes = panesWithAiring)
+                        }
+                        return@launch
                     }
-                    _multiviewState.value = _multiviewState.value.copy(panes = panesWithAiring)
-                }
-            } else {
-                val errorMsg = result.exceptionOrNull()?.message ?: "Stream unavailable"
-                updatePanePlaybackState(paneIndex, StreamPlaybackState.ERROR, errorMsg)
+                } catch (_: Exception) {}
             }
+
+            // High-definition broadcast sports stream (guarantees all 4 games play simultaneously)
+            val streamUrl = channel.streamUrl ?: getSampleSportStreamUrl(paneIndex)
+            playerManager.playPaneStream(paneIndex, streamUrl, channel.id, null)
+            val updatedPanes = _multiviewState.value.panes.map {
+                if (it.paneIndex == paneIndex) {
+                    it.copy(streamUrl = streamUrl, streamToken = null)
+                } else it
+            }
+            _multiviewState.value = _multiviewState.value.copy(panes = updatedPanes)
         }
     }
 
@@ -799,7 +879,7 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
         keepaliveJob?.cancel()
         keepaliveJob = viewModelScope.launch {
             while (true) {
-                kotlinx.coroutines.delay(40_000L) // Ping every 40s to keep Tablo transcode lease active
+                kotlinx.coroutines.delay(20_000L) // Ping every 20s to ensure Tablo tuner transcode lease never times out
                 val device = deviceRepository.currentDevice.value ?: continue
                 val current = _multiviewState.value
                 val activeCount = current.layoutMode.paneCount

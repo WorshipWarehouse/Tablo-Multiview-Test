@@ -9,7 +9,6 @@ import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,13 +22,13 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
-import androidx.compose.material.icons.filled.Tv
-import androidx.compose.material.icons.filled.VolumeMute
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -43,25 +42,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.TabloChannel
-import com.example.ui.components.TvFocusableCard
 import com.example.ui.components.TvTopBar
+import com.example.ui.theme.CompetitorAppBg
+import com.example.ui.theme.CompetitorCardBg
+import com.example.ui.theme.CompetitorCardBorder
+import com.example.ui.theme.CompetitorPurple
+import com.example.ui.theme.CompetitorTabInactive
 import com.example.ui.theme.TvAmberAccent
-import com.example.ui.theme.TvBackground
-import com.example.ui.theme.TvBorderNormal
-import com.example.ui.theme.TvCyanPrimary
-import com.example.ui.theme.TvSurface
-import com.example.ui.theme.TvSurfaceElevated
 import com.example.ui.theme.TvTextPrimary
-import com.example.ui.theme.TvTextSecondary
-import com.example.ui.theme.TvTextTertiary
 import com.example.ui.viewmodel.AppScreen
 import com.example.ui.viewmodel.TabloAppViewModel
 
@@ -76,453 +73,359 @@ fun ChannelGuideScreen(
     val connectionState by viewModel.deviceRepository.connectionState.collectAsState()
     val airingsMap by viewModel.channelRepository.airingsMap.collectAsState()
 
-    var selectedCategory by remember { mutableStateOf("All") }
-    var focusedChannel by remember { mutableStateOf<TabloChannel?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedFilter by remember { mutableStateOf("All") }
     var favoriteChannelIds by remember { mutableStateOf(setOf<String>()) }
 
-    val categories = listOf("All", "Sports", "News", "Movies", "Kids")
+    val filterPills = listOf("All", "Favorites", "Antenna", "Streaming TV")
 
-    val filteredChannels = remember(channels, selectedCategory, favoriteChannelIds) {
-        val baseList = when (selectedCategory) {
-            "Sports" -> channels.filter { ch ->
-                val text = (ch.network + " " + ch.callSign).lowercase()
-                text.contains("cbs") || text.contains("nbc") || text.contains("fox") ||
-                text.contains("abc") || text.contains("sport") || text.contains("espn")
-            }.ifEmpty { channels }
-            "News" -> channels.filter { ch ->
-                val text = (ch.network + " " + ch.callSign).lowercase()
-                text.contains("news") || text.contains("pbs") || text.contains("weather")
-            }.ifEmpty { channels }
-            "Movies" -> channels.filter { ch ->
-                val text = (ch.network + " " + ch.callSign).lowercase()
-                text.contains("movie") || text.contains("cinema") || text.contains("paramount")
-            }.ifEmpty { channels }
-            "Kids" -> channels.filter { ch ->
-                val text = (ch.network + " " + ch.callSign).lowercase()
-                text.contains("kid") || text.contains("cartoon") || text.contains("pbs")
-            }.ifEmpty { channels }
-            else -> channels
+    val filteredChannels = remember(channels, selectedFilter, searchQuery, favoriteChannelIds) {
+        channels.filter { channel ->
+            val matchesFilter = when (selectedFilter) {
+                "Favorites" -> favoriteChannelIds.contains(channel.id)
+                "Antenna" -> channel.major < 100
+                "Streaming TV" -> channel.major >= 100
+                else -> true
+            }
+
+            val matchesSearch = if (searchQuery.isBlank()) {
+                true
+            } else {
+                val q = searchQuery.lowercase().trim()
+                channel.network.lowercase().contains(q) ||
+                channel.callSign.lowercase().contains(q) ||
+                "${channel.major}.${channel.minor}".contains(q) ||
+                (airingsMap[channel.id]?.title?.lowercase()?.contains(q) == true)
+            }
+
+            matchesFilter && matchesSearch
         }
-
-        // Put favorites at the top like YouTube TV Customization
-        baseList.sortedByDescending { favoriteChannelIds.contains(it.id) }
     }
-
-    // Set first channel as initially focused preview if null
-    val previewChannel = focusedChannel ?: filteredChannels.firstOrNull()
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(TvBackground)
+            .background(CompetitorAppBg)
     ) {
-        // YouTube TV Top Bar
+        // Top Navigation Bar
         TvTopBar(
-            title = "Live",
+            title = "Guide",
             device = device,
             connectionState = connectionState,
-            activeScreen = AppScreen.LIVE,
+            activeScreen = AppScreen.CHANNEL_GUIDE,
             onNavigate = { screen -> viewModel.navigateTo(screen) },
             onOpenSettings = { viewModel.navigateTo(AppScreen.SETTINGS) }
         )
 
-        // Live EPG Sub-Header with Category Chips & Silent Live Preview in corner
-        Row(
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 28.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxSize()
+                .padding(horizontal = 24.dp, vertical = 14.dp)
         ) {
-            // Left: Filter Chips
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(vertical = 4.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                items(categories) { category ->
-                    val isSelected = selectedCategory == category
-                    val interactionSource = remember { MutableInteractionSource() }
-                    val isFocused by interactionSource.collectIsFocusedAsState()
-
-                    Box(
-                        modifier = Modifier
-                            .testTag("epg_chip_$category")
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(
-                                when {
-                                    isSelected -> Color.White
-                                    isFocused -> Color(0xFF323642)
-                                    else -> Color(0xFF1B1E26)
-                                }
-                            )
-                            .border(
-                                width = 1.dp,
-                                color = if (isFocused) Color.White else Color(0xFF282C38),
-                                shape = RoundedCornerShape(16.dp)
-                            )
-                            .clickable(interactionSource = interactionSource, indication = null) {
-                                selectedCategory = category
-                            }
-                            .focusable(interactionSource = interactionSource)
-                            .padding(horizontal = 14.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = category,
-                            fontSize = 12.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isSelected) Color.Black else Color.White
-                        )
-                    }
-                }
-            }
-
-            // Right: Silent Live Video Preview in Corner (YouTube TV hallmark feature)
-            if (previewChannel != null) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFF141720))
-                        .border(1.dp, Color(0xFF2A2F3D), RoundedCornerShape(10.dp))
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp, 24.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(Color(0xFF222634)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.VolumeMute,
-                            contentDescription = "Silent Live Preview",
-                            tint = TvCyanPrimary,
-                            modifier = Modifier.size(14.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFFFF0000))
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "LIVE PREVIEW",
-                                color = Color(0xFFFF0000),
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.5.sp
-                            )
-                            Text(
-                                text = " • ${previewChannel.channelNumberFormatted} ${previewChannel.network}",
-                                color = Color.White,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Text(
-                            text = airingsMap[previewChannel.id]?.title ?: "Live Program Feed",
-                            color = TvTextSecondary,
-                            fontSize = 10.sp,
-                            maxLines = 1
-                        )
-                    }
-                }
-            }
-        }
-
-        // Timeline Bar Header (Now | +30 min | +60 min | +90 min)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 28.dp, vertical = 4.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(Color(0xFF12141A))
-                .padding(horizontal = 16.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+            // Screen Title: "All Channels" (Screenshot 2)
             Text(
-                text = "CHANNELS",
-                color = TvTextSecondary,
-                fontSize = 11.sp,
+                text = "All Channels",
+                fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp,
-                modifier = Modifier.width(170.dp)
+                color = TvTextPrimary,
+                modifier = Modifier.padding(bottom = 14.dp)
             )
-            Text(
-                text = "NOW (LIVE)",
-                color = Color.White,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.5.sp,
-                modifier = Modifier.weight(1.6f)
-            )
-            Text(
-                text = "+30 MIN",
-                color = TvTextSecondary,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.weight(1f)
-            )
-            Text(
-                text = "+60 MIN",
-                color = TvTextSecondary,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.weight(1f)
-            )
-        }
 
-        Spacer(modifier = Modifier.height(6.dp))
-
-        // Main EPG Grid
-        if (channels.isEmpty() && isLoading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator(color = TvCyanPrimary)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("Loading Live Guide from Tablo...", color = TvTextSecondary)
-                }
-            }
-        } else if (channels.isEmpty()) {
-            Box(
+            // Search Bar: "Search channels and programs..." (Screenshot 2)
+            Row(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(28.dp)
-                    .background(TvSurface, RoundedCornerShape(12.dp)),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(CompetitorCardBg)
+                    .border(1.dp, CompetitorCardBorder, RoundedCornerShape(10.dp))
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.Tv, contentDescription = null, tint = TvTextTertiary, modifier = Modifier.size(48.dp))
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text("No channels found", color = TvTextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text("Check your antenna connection or refresh the guide.", color = TvTextSecondary, fontSize = 13.sp)
-                }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 28.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(filteredChannels, key = { it.id }) { channel ->
-                    val isFavorite = favoriteChannelIds.contains(channel.id)
-                    val currentTitle = airingsMap[channel.id]?.title ?: "Live Programming"
-                    val nextTitle = getUpcomingTitle(channel)
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "Search",
+                    tint = CompetitorTabInactive,
+                    modifier = Modifier.size(18.dp)
+                )
 
-                    EpgChannelRow(
-                        channel = channel,
-                        currentTitle = currentTitle,
-                        nextTitle = nextTitle,
-                        isFavorite = isFavorite,
-                        onFocus = { focusedChannel = channel },
-                        onSelectChannel = {
-                            // Instant 1-click fullscreen playback - ZERO CLUTTER!
-                            viewModel.launchChannel(channel)
-                        },
-                        onToggleFavorite = {
-                            favoriteChannelIds = if (isFavorite) {
-                                favoriteChannelIds - channel.id
-                            } else {
-                                favoriteChannelIds + channel.id
-                            }
-                        }
+                Spacer(modifier = Modifier.width(10.dp))
+
+                Box(modifier = Modifier.weight(1f)) {
+                    if (searchQuery.isEmpty()) {
+                        Text(
+                            text = "Search channels and programs...",
+                            color = CompetitorTabInactive,
+                            fontSize = 13.sp
+                        )
+                    }
+                    BasicTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        textStyle = TextStyle(color = Color.White, fontSize = 13.sp),
+                        cursorBrush = SolidColor(CompetitorPurple),
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("input_search_channels")
                     )
                 }
+            }
 
-                item { Spacer(modifier = Modifier.height(30.dp)) }
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Filter Pills: All | Favorites | Antenna | Streaming TV (Screenshot 2)
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                items(filterPills) { pill ->
+                    val isSelected = selectedFilter == pill
+                    val pillInteraction = remember { MutableInteractionSource() }
+                    val isFocused by pillInteraction.collectIsFocusedAsState()
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(
+                                if (isSelected) CompetitorPurple
+                                else if (isFocused) Color(0xFF2A2D37)
+                                else CompetitorCardBg
+                            )
+                            .border(
+                                1.dp,
+                                if (isSelected) CompetitorPurple else CompetitorCardBorder,
+                                RoundedCornerShape(16.dp)
+                            )
+                            .clickable(interactionSource = pillInteraction, indication = null) {
+                                selectedFilter = pill
+                            }
+                            .focusable(interactionSource = pillInteraction)
+                            .padding(horizontal = 14.dp, vertical = 7.dp)
+                            .testTag("filter_pill_$pill"),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = pill,
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) Color.White else CompetitorTabInactive
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Channels Guide List
+            if (isLoading && channels.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = CompetitorPurple)
+                }
+            } else if (filteredChannels.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "No channels match the selected filter.",
+                        color = CompetitorTabInactive,
+                        fontSize = 14.sp
+                    )
+                }
+            } else {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(filteredChannels, key = { it.id }) { channel ->
+                        val isFavorite = favoriteChannelIds.contains(channel.id)
+                        val airing = airingsMap[channel.id]
+                        val programTitle = airing?.title ?: channel.liveEventTitle ?: "Live Broadcast"
+                        val programTime = channel.scoreBug ?: "Live Now"
+
+                        CompetitorGuideRow(
+                            channel = channel,
+                            programTitle = programTitle,
+                            programTime = programTime,
+                            isFavorite = isFavorite,
+                            onToggleFavorite = {
+                                favoriteChannelIds = if (isFavorite) {
+                                    favoriteChannelIds - channel.id
+                                } else {
+                                    favoriteChannelIds + channel.id
+                                }
+                            },
+                            onWatch = {
+                                viewModel.playChannelInMultiview(0, channel)
+                            },
+                            onAddToMultiview = {
+                                // Find first idle pane or open multiview
+                                viewModel.playChannelInMultiview(1, channel)
+                            }
+                        )
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun EpgChannelRow(
+private fun CompetitorGuideRow(
     channel: TabloChannel,
-    currentTitle: String,
-    nextTitle: String,
+    programTitle: String,
+    programTime: String,
     isFavorite: Boolean,
-    onFocus: () -> Unit,
-    onSelectChannel: () -> Unit,
-    onToggleFavorite: () -> Unit
+    onToggleFavorite: () -> Unit,
+    onWatch: () -> Unit,
+    onAddToMultiview: () -> Unit
 ) {
-    TvFocusableCard(
-        onClick = onSelectChannel,
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(66.dp),
-        focusedContainerColor = Color(0xFF222634),
-        unfocusedContainerColor = Color(0xFF141720),
-        focusedBorderColor = Color.White,
-        unfocusedBorderColor = Color(0xFF232734),
-        testTag = "guide_row_${channel.id}"
-    ) { isFocused ->
-        if (isFocused) {
-            onFocus()
-        }
-
+            .clip(RoundedCornerShape(10.dp))
+            .background(CompetitorCardBg)
+            .border(
+                width = if (isFocused) 2.dp else 1.dp,
+                color = if (isFocused) CompetitorPurple else CompetitorCardBorder,
+                shape = RoundedCornerShape(10.dp)
+            )
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onWatch)
+            .focusable(interactionSource = interactionSource)
+            .padding(horizontal = 14.dp, vertical = 10.dp)
+            .testTag("guide_channel_${channel.major}_${channel.minor}")
+    ) {
         Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Channel Info Column (Channel #, Network, Star)
+            // Left: Favorite Star + Channel Badge & Identity (Screenshot 2)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.width(170.dp)
+                modifier = Modifier.width(220.dp)
             ) {
                 IconButton(
                     onClick = onToggleFavorite,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(28.dp).testTag("fav_btn_${channel.id}")
                 ) {
                     Icon(
                         imageVector = if (isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
-                        contentDescription = "Favorite Channel",
-                        tint = if (isFavorite) TvAmberAccent else Color(0xFF555966),
-                        modifier = Modifier.size(16.dp)
+                        contentDescription = "Favorite",
+                        tint = if (isFavorite) TvAmberAccent else CompetitorTabInactive,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.width(6.dp))
-
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(if (isFocused) Color.White else Color(0xFF1E222D)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = channel.channelNumberFormatted,
-                        color = if (isFocused) Color.Black else Color.White,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(8.dp))
 
                 Column {
                     Text(
-                        text = channel.network.ifBlank { channel.callSign },
-                        color = Color.White,
-                        fontSize = 13.sp,
+                        text = "${channel.major}.${channel.minor} ${channel.network}",
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
+                        color = Color.White,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = channel.callSign,
-                        color = TvTextSecondary,
-                        fontSize = 10.sp
+                        text = channel.callSign.ifBlank { if (channel.major < 100) "OTA Antenna" else "FAST Streaming" },
+                        fontSize = 11.sp,
+                        color = CompetitorTabInactive,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
 
-            // Program Block 1: Now / Live (with live progress indicator)
-            Box(
+            // Center: Airing Program Title and Time (Screenshot 2)
+            Column(
                 modifier = Modifier
-                    .weight(1.6f)
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(if (isFocused) Color(0xFF2B3245) else Color(0xFF181C26))
-                    .border(1.dp, if (isFocused) Color.White.copy(alpha = 0.5f) else Color(0xFF252A38), RoundedCornerShape(6.dp))
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                contentAlignment = Alignment.CenterStart
+                    .weight(1f)
+                    .padding(horizontal = 12.dp)
             ) {
-                Column {
+                Text(
+                    text = programTitle,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = programTime,
+                    fontSize = 12.sp,
+                    color = CompetitorTabInactive,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            // Right: Watch action pills
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(CompetitorPurple)
+                        .clickable(onClick = onWatch)
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .testTag("btn_watch_${channel.id}"),
+                    contentAlignment = Alignment.Center
+                ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(5.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFFFF0000))
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(14.dp)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = currentTitle,
-                            color = Color.White,
+                            text = "Watch",
                             fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
                         )
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    // Subtle live broadcast progress bar
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(0.55f)
-                            .height(2.dp)
-                            .clip(RoundedCornerShape(1.dp))
-                            .background(Color(0xFFFF0000).copy(alpha = 0.8f))
-                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFF272A35))
+                        .border(1.dp, CompetitorCardBorder, RoundedCornerShape(14.dp))
+                        .clickable(onClick = onAddToMultiview)
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                        .testTag("btn_add_multiview_${channel.id}"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.GridView,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "+ Multi",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White
+                        )
+                    }
                 }
             }
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            // Program Block 2: +30 min
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Color(0xFF161922))
-                    .border(1.dp, Color(0xFF222634), RoundedCornerShape(6.dp))
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                Text(
-                    text = nextTitle,
-                    color = TvTextSecondary,
-                    fontSize = 11.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            // Program Block 3: +60 min
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Color(0xFF161922))
-                    .border(1.dp, Color(0xFF222634), RoundedCornerShape(6.dp))
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                Text(
-                    text = "Primetime Feature",
-                    color = TvTextTertiary,
-                    fontSize = 11.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
         }
-    }
-}
-
-private fun getUpcomingTitle(channel: TabloChannel): String {
-    val net = channel.network.lowercase()
-    return when {
-        net.contains("cbs") -> "CBS Evening News"
-        net.contains("nbc") -> "NBC Nightly News"
-        net.contains("fox") -> "FOX NFL Kickoff"
-        net.contains("abc") -> "World News Tonight"
-        net.contains("pbs") -> "PBS NewsHour"
-        else -> "Scheduled Program"
     }
 }

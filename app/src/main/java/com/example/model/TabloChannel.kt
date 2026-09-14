@@ -12,7 +12,10 @@ data class TabloChannel(
     val resolution: String? = null,
     val audio: String? = null,
     val logoUrl: String? = null,
-    val channelPath: String = "/guide/channels/$id"
+    val channelPath: String = "/guide/channels/$id",
+    val streamUrl: String? = null,
+    val liveEventTitle: String? = null,
+    val scoreBug: String? = null
 ) {
     val channelNumberFormatted: String
         get() = if (minor > 0) "$major.$minor" else "$major"

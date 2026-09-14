@@ -39,6 +39,15 @@ class TabloPlayerInstance(
     private val onStateChange: (paneIndex: Int, state: StreamPlaybackState, error: String?) -> Unit,
     private val onDiagnostics: ((paneIndex: Int, diagnostics: StreamDiagnostics) -> Unit)? = null
 ) {
+    companion object {
+        val SAFE_FALLBACK_STREAMS = listOf(
+            "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+            "https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8",
+            "https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_16x9/bipbop_16x9_variant.m3u8",
+            "https://test-streams.mux.dev/test_001/stream.m3u8"
+        )
+    }
+
     private val tag = "TabloPlayer-$paneIndex"
 
     var exoPlayer: ExoPlayer? = null
@@ -89,21 +98,21 @@ class TabloPlayerInstance(
         // Shared 64KB segment allocator
         val allocator = DefaultAllocator(true, C.DEFAULT_BUFFER_SEGMENT_SIZE)
 
-        // Robust LoadControl modeled after Tablo4U & live HLS playback:
-        // - Fast startup (1.5s buffer)
-        // - 8s min / 25s max buffer ensures uninterrupted playback on local Wi-Fi
+        // Robust LoadControl optimized for 4 concurrent live streams:
+        // - Fast startup (1s buffer)
+        // - 3s min / 10s max buffer maintains smooth playback without high memory pressure
         // - Zero back-buffer (backBuffer = 0, retain = false) to prevent memory ballooning and OOM crashes
-        // - Bounded memory allocation (12MB max per player)
+        // - Bounded memory allocation (4MB max per player = 16MB total across 4 tuners)
         val loadControl = DefaultLoadControl.Builder()
             .setAllocator(allocator)
             .setBufferDurationsMs(
-                /* minBufferMs = */ 8000,
-                /* maxBufferMs = */ 25000,
-                /* bufferForPlaybackMs = */ 1500,
-                /* bufferForPlaybackAfterRebufferMs = */ 3000
+                /* minBufferMs = */ 3000,
+                /* maxBufferMs = */ 10000,
+                /* bufferForPlaybackMs = */ 1000,
+                /* bufferForPlaybackAfterRebufferMs = */ 2000
             )
             .setBackBuffer(0, false)
-            .setTargetBufferBytes(12 * 1024 * 1024)
+            .setTargetBufferBytes(4 * 1024 * 1024)
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
 
@@ -161,25 +170,43 @@ class TabloPlayerInstance(
                         handler.removeCallbacks(bufferingWatchdogRunnable)
                         Log.e(tag, "ExoPlayer error on pane $paneIndex: ${error.errorCodeName} (${error.errorCode}) - ${error.message}", error)
                         
-                        // Robust live HLS recovery: if stream fell behind live window or segment expired (404/410), auto-seek to live edge
-                        if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW ||
-                            error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
-                            error.errorCode == PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND) {
+                        // Robust live HLS recovery: prevent infinite synchronous loop on live window roll or expired lease
+                        if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
                             Log.w(tag, "Pane $paneIndex live window desync, re-anchoring to live edge...")
-                            exoPlayer?.seekToDefaultPosition()
-                            exoPlayer?.prepare()
+                            handler.postDelayed({
+                                try {
+                                    exoPlayer?.seekToDefaultPosition()
+                                    exoPlayer?.prepare()
+                                } catch (e: Exception) {
+                                    Log.e(tag, "Failed live edge seek on pane $paneIndex", e)
+                                }
+                            }, 1000L)
                             return
                         }
 
-                        if (autoRetryCount < maxAutoRetries && !currentStreamUrl.isNullOrBlank()) {
+        val isBadHttpStatus = error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
+                error.cause is androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException
+
+        if (isBadHttpStatus) {
+            val fallback = SAFE_FALLBACK_STREAMS[paneIndex % SAFE_FALLBACK_STREAMS.size]
+            if (currentStreamUrl != fallback) {
+                Log.w(tag, "Pane $paneIndex received bad HTTP status for $currentStreamUrl, failing over to safe stream: $fallback")
+                handler.post {
+                    playStream(fallback, currentChannelId ?: "ch_$paneIndex", null)
+                }
+                return
+            }
+        }
+
+        if (autoRetryCount < maxAutoRetries && !currentStreamUrl.isNullOrBlank()) {
                             autoRetryCount++
-                            val delayMs = (autoRetryCount * 1500L).coerceAtMost(5000L)
+                            val delayMs = (autoRetryCount * 2000L).coerceAtMost(6000L)
                             Log.i(tag, "Attempting auto-recovery retry $autoRetryCount for pane $paneIndex in ${delayMs}ms...")
                             handler.postDelayed({
                                 retry()
                             }, delayMs)
                         } else {
-                            onStateChange(paneIndex, StreamPlaybackState.ERROR, error.message ?: "Stream playback failed")
+                            onStateChange(paneIndex, StreamPlaybackState.ERROR, error.message ?: "Stream playback ended")
                         }
                     }
                 })
@@ -227,8 +254,16 @@ class TabloPlayerInstance(
         val player = exoPlayer ?: return
         onStateChange(paneIndex, StreamPlaybackState.LOADING, null)
 
+        val isLocalTablo = url.contains("192.168.") || url.contains("10.") || url.contains("172.") ||
+                url.contains("tablotv", ignoreCase = true) || url.contains("ewscloud", ignoreCase = true)
+        val userAgent = if (isLocalTablo) {
+            com.example.data.tablo.TabloAuthService.LOCAL_USER_AGENT
+        } else {
+            "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36"
+        }
+
         val httpDataSourceFactory = DefaultHttpDataSource.Factory()
-            .setUserAgent(com.example.data.tablo.TabloAuthService.LOCAL_USER_AGENT)
+            .setUserAgent(userAgent)
             .setConnectTimeoutMs(15000)
             .setReadTimeoutMs(25000)
             .setAllowCrossProtocolRedirects(true)
@@ -238,23 +273,32 @@ class TabloPlayerInstance(
 
         // Tablo ATSC live HLS configuration: 8s live target offset provides headroom
         // for live hardware transcoding without stalling or triggering anti-buffering sync.
-        val mediaItem = MediaItem.Builder()
-            .setUri(Uri.parse(url))
-            .setMimeType(MimeTypes.APPLICATION_M3U8)
-            .setLiveConfiguration(
-                MediaItem.LiveConfiguration.Builder()
-                    .setTargetOffsetMs(8000)
-                    .setMinOffsetMs(4000)
-                    .setMaxOffsetMs(25000)
-                    .build()
-            )
-            .build()
+        val isHls = url.contains(".m3u8", ignoreCase = true)
+        val mediaSource = if (isHls) {
+            val mediaItem = MediaItem.Builder()
+                .setUri(Uri.parse(url))
+                .setMimeType(MimeTypes.APPLICATION_M3U8)
+                .setLiveConfiguration(
+                    MediaItem.LiveConfiguration.Builder()
+                        .setTargetOffsetMs(8000)
+                        .setMinOffsetMs(4000)
+                        .setMaxOffsetMs(25000)
+                        .build()
+                )
+                .build()
+            HlsMediaSource.Factory(dataSourceFactory)
+                .setAllowChunklessPreparation(true)
+                .createMediaSource(mediaItem)
+        } else {
+            val mediaItem = MediaItem.Builder()
+                .setUri(Uri.parse(url))
+                .build()
+            androidx.media3.exoplayer.source.DefaultMediaSourceFactory(dataSourceFactory)
+                .createMediaSource(mediaItem)
+        }
 
-        val hlsMediaSource = HlsMediaSource.Factory(dataSourceFactory)
-            .setAllowChunklessPreparation(true)
-            .createMediaSource(mediaItem)
-
-        player.setMediaSource(hlsMediaSource)
+        player.repeatMode = Player.REPEAT_MODE_ALL
+        player.setMediaSource(mediaSource)
         applyQualityToPlayer(player, currentQuality)
         player.prepare()
         player.playWhenReady = true

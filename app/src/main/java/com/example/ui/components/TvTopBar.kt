@@ -1,6 +1,5 @@
 package com.example.ui.components
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -9,17 +8,16 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -32,21 +30,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.R
 import com.example.model.TabloConnectionState
 import com.example.model.TabloDevice
-import com.example.ui.theme.TvBackground
-import com.example.ui.theme.TvBorderNormal
-import com.example.ui.theme.TvCyanPrimary
-import com.example.ui.theme.TvError
+import com.example.ui.theme.CompetitorAppBg
+import com.example.ui.theme.CompetitorCardBorder
+import com.example.ui.theme.CompetitorSurface
+import com.example.ui.theme.CompetitorTabActive
+import com.example.ui.theme.CompetitorTabInactive
 import com.example.ui.theme.TvSuccess
 import com.example.ui.theme.TvTextPrimary
-import com.example.ui.theme.TvTextSecondary
-import com.example.ui.theme.TvWarning
 import com.example.ui.viewmodel.AppScreen
 
 @Composable
@@ -57,129 +52,141 @@ fun TvTopBar(
     modifier: Modifier = Modifier,
     activeScreen: AppScreen = AppScreen.HOME,
     onNavigate: ((AppScreen) -> Unit)? = null,
-    onOpenSettings: (() -> Unit)? = null
+    onOpenSettings: (() -> Unit)? = null,
+    onFilterClick: (() -> Unit)? = null
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(TvBackground)
-            .padding(horizontal = 24.dp, vertical = 12.dp),
+            .background(CompetitorAppBg)
+            .padding(horizontal = 20.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Left: YouTube TV Styled Logo / Brand
+        // Left: macOS Style Window Dots + App Brand (Screenshot 1)
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.clickable { onNavigate?.invoke(AppScreen.HOME) }
         ) {
-            Box(
-                modifier = Modifier
-                    .size(34.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFFFF0000)),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.ic_app_brand_logo),
-                    contentDescription = "YouTube TV Style Logo",
-                    modifier = Modifier.size(28.dp).clip(RoundedCornerShape(6.dp))
-                )
+            // Three window control dots
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(Color(0xFFFF5F56)))
+                Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(Color(0xFFFFBD2E)))
+                Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(Color(0xFF27C93F)))
             }
 
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(14.dp))
 
             Text(
-                text = "TABLO",
-                color = Color.White,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Black,
-                letterSpacing = 1.sp
-            )
-            Text(
-                text = " TV",
-                color = Color(0xFFFF0000),
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Black,
-                letterSpacing = 1.sp
+                text = "Multiview",
+                color = TvTextPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.2.sp
             )
         }
 
-        // Center: YouTube TV 3 Primary Tabs (LIBRARY, HOME, LIVE)
+        // Center: Pill Navigation Capsule: Search | Home | Guide | Library | Layouts (Screenshots 1 & 2)
         Row(
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier
+                .clip(RoundedCornerShape(22.dp))
+                .background(CompetitorSurface)
+                .border(1.dp, CompetitorCardBorder, RoundedCornerShape(22.dp))
+                .padding(horizontal = 4.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TopNavTabItem(
-                label = "LIBRARY",
-                isSelected = activeScreen == AppScreen.LIBRARY,
-                testTag = "tab_library",
-                onClick = { onNavigate?.invoke(AppScreen.LIBRARY) }
+            CompetitorNavTab(
+                label = "Search",
+                isSelected = false,
+                testTag = "tab_search",
+                onClick = { onNavigate?.invoke(AppScreen.CHANNEL_GUIDE) }
             )
-            TopNavTabItem(
-                label = "HOME",
+            CompetitorNavTab(
+                label = "Home",
                 isSelected = activeScreen == AppScreen.HOME,
                 testTag = "tab_home",
                 onClick = { onNavigate?.invoke(AppScreen.HOME) }
             )
-            TopNavTabItem(
-                label = "LIVE",
-                isSelected = activeScreen == AppScreen.LIVE || activeScreen == AppScreen.CHANNEL_GUIDE,
-                testTag = "tab_live",
-                onClick = { onNavigate?.invoke(AppScreen.LIVE) }
+            CompetitorNavTab(
+                label = "Guide",
+                isSelected = activeScreen == AppScreen.CHANNEL_GUIDE || activeScreen == AppScreen.LIVE,
+                testTag = "tab_guide",
+                onClick = { onNavigate?.invoke(AppScreen.CHANNEL_GUIDE) }
+            )
+            CompetitorNavTab(
+                label = "Library",
+                isSelected = activeScreen == AppScreen.LIBRARY,
+                testTag = "tab_library",
+                onClick = { onNavigate?.invoke(AppScreen.LIBRARY) }
+            )
+            CompetitorNavTab(
+                label = "Layouts",
+                isSelected = activeScreen == AppScreen.SAVED_LAYOUTS,
+                testTag = "tab_layouts",
+                onClick = { onNavigate?.invoke(AppScreen.SAVED_LAYOUTS) }
             )
         }
 
-        // Right: Connection Pill & Settings
+        // Right: Tuner Status Pill + Settings Gear (+ Filter in Guide)
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Connection Status Pill
+            // Tuner indicator badge
+            val tunerCount = device?.tunerCount ?: 4
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0xFF141720))
-                    .border(1.dp, TvBorderNormal, RoundedCornerShape(20.dp))
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF16201B))
+                    .border(1.dp, Color(0xFF203828), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 9.dp, vertical = 4.dp)
             ) {
-                val (statusColor, statusText) = when (connectionState) {
-                    TabloConnectionState.CONNECTED -> Pair(TvSuccess, device?.name ?: "Tablo Connected")
-                    TabloConnectionState.CONNECTING -> Pair(TvWarning, "Connecting...")
-                    TabloConnectionState.DISCOVERING -> Pair(TvCyanPrimary, "Discovering...")
-                    TabloConnectionState.ERROR -> Pair(TvError, "Disconnected")
-                    TabloConnectionState.DISCONNECTED -> Pair(TvTextSecondary, "Offline")
-                }
-
                 Box(
                     modifier = Modifier
-                        .size(8.dp)
+                        .size(6.dp)
                         .clip(CircleShape)
-                        .background(statusColor)
+                        .background(TvSuccess)
                 )
-
+                Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "  $statusText",
-                    color = Color.White,
-                    fontSize = 12.sp,
+                    text = "$tunerCount Tuners",
+                    color = Color(0xFF4ADE80),
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Medium
                 )
             }
 
-            // Settings Gear Icon
+            if (activeScreen == AppScreen.CHANNEL_GUIDE || activeScreen == AppScreen.LIVE) {
+                IconButton(
+                    onClick = { onFilterClick?.invoke() },
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .testTag("btn_filter_channels")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FilterList,
+                        contentDescription = "Filter Channels",
+                        tint = CompetitorTabInactive,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
             if (onOpenSettings != null) {
                 IconButton(
                     onClick = onOpenSettings,
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(32.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF1C1F28))
                         .testTag("btn_top_settings")
                 ) {
                     Icon(
                         imageVector = Icons.Default.Settings,
                         contentDescription = "Settings",
-                        tint = Color.White,
+                        tint = CompetitorTabInactive,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -189,7 +196,7 @@ fun TvTopBar(
 }
 
 @Composable
-private fun TopNavTabItem(
+private fun CompetitorNavTab(
     label: String,
     isSelected: Boolean,
     testTag: String,
@@ -198,40 +205,21 @@ private fun TopNavTabItem(
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
 
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
+    Box(
         modifier = Modifier
             .testTag(testTag)
-            .clip(RoundedCornerShape(6.dp))
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (isSelected || isFocused) CompetitorTabActive else Color.Transparent)
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .focusable(interactionSource = interactionSource)
-            .padding(horizontal = 14.dp, vertical = 6.dp)
+            .padding(horizontal = 14.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
-            fontSize = 15.sp,
-            fontWeight = if (isSelected || isFocused) FontWeight.ExtraBold else FontWeight.Medium,
-            letterSpacing = 1.sp,
-            color = when {
-                isFocused -> Color.White
-                isSelected -> Color.White
-                else -> TvTextSecondary
-            }
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        // YouTube TV active indicator bar
-        Box(
-            modifier = Modifier
-                .width(if (isSelected || isFocused) 28.dp else 0.dp)
-                .height(3.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(
-                    when {
-                        isFocused -> Color.White
-                        isSelected -> Color(0xFFFF0000)
-                        else -> Color.Transparent
-                    }
-                )
+            fontSize = 13.sp,
+            fontWeight = if (isSelected || isFocused) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (isSelected || isFocused) Color.White else CompetitorTabInactive
         )
     }
 }

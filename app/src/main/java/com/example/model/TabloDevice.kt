@@ -8,11 +8,11 @@ data class TabloDevice(
     val name: String,
     val host: String,
     val port: Int = 8885,
-    val modelName: String = "Tablo Gen 4",
+    val modelName: String = "Tablo Gen 4 (4-Tuner)",
     val modelType: String? = null,
     val version: String = "",
     val timezone: String = "",
-    val tunerCount: Int = 2,
+    val tunerCount: Int = 4,
     val isWifi: Boolean = true,
     val lastConnected: Long = System.currentTimeMillis()
 ) {

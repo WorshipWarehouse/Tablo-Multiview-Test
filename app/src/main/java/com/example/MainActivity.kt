@@ -99,6 +99,7 @@ fun TabloAppRoot(
         when (currentScreen) {
             AppScreen.MULTIVIEW -> {
                 when {
+                    multiviewState.isSettingsModalOpen -> viewModel.closeSettingsModal()
                     multiviewState.isMultiviewBuilderOpen -> viewModel.closeMultiviewBuilder()
                     multiviewState.isStatsOverlayOpen -> viewModel.closeStatsOverlay()
                     multiviewState.isPlaybackOverlayVisible -> viewModel.togglePlaybackOverlay(false)

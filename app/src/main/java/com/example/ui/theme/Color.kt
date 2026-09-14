@@ -14,6 +14,18 @@ val TvCyanLight = Color(0xFF80F0FF)          // High-luminance ice blue
 val TvCyanDark = Color(0xFF0098A6)           // Deep cyber cyan
 val TvCyanGlow = Color(0x3300E5FF)           // 20% alpha cyan aura
 
+// Competitor App Palette (Mac/iPad Multiview style from reference screenshots)
+val CompetitorAppBg = Color(0xFF131417)
+val CompetitorSurface = Color(0xFF1A1C22)
+val CompetitorCardBg = Color(0xFF1E2026)
+val CompetitorCardBorder = Color(0xFF2B2E37)
+val CompetitorTabActive = Color(0xFF2E313E)
+val CompetitorTabInactive = Color(0xFF8E92A0)
+val CompetitorPurple = Color(0xFF5B53F4)       // Royal purple / indigo action button & active pill
+val CompetitorPurpleDark = Color(0xFF473DC8)
+val CompetitorLayoutBlue = Color(0xFF3B82F6)    // Layout rectangles outline blue
+val CompetitorGreen = Color(0xFF22C55E)         // Replay icon green
+
 val TvAmberAccent = Color(0xFFFFB300)        // Game Day sports gold
 val TvAmberLight = Color(0xFFFFD54F)         // Light gold highlight
 

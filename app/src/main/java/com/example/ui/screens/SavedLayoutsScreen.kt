@@ -1,6 +1,11 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,35 +21,35 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.model.MultiviewLayoutMode
 import com.example.model.SavedLayout
-import com.example.ui.components.TvButton
-import com.example.ui.components.TvButtonStyle
-import com.example.ui.components.TvFocusableCard
-import com.example.ui.theme.TvAmberAccent
-import com.example.ui.theme.TvBackground
-import com.example.ui.theme.TvCyanPrimary
-import com.example.ui.theme.TvError
-import com.example.ui.theme.TvSurface
-import com.example.ui.theme.TvSurfaceVariant
+import com.example.ui.components.TvTopBar
+import com.example.ui.theme.CompetitorAppBg
+import com.example.ui.theme.CompetitorCardBg
+import com.example.ui.theme.CompetitorCardBorder
+import com.example.ui.theme.CompetitorLayoutBlue
+import com.example.ui.theme.CompetitorPurple
+import com.example.ui.theme.CompetitorTabInactive
 import com.example.ui.theme.TvTextPrimary
-import com.example.ui.theme.TvTextSecondary
-import com.example.ui.theme.TvTextTertiary
 import com.example.ui.viewmodel.AppScreen
 import com.example.ui.viewmodel.TabloAppViewModel
 
@@ -54,93 +59,168 @@ fun SavedLayoutsScreen(
     modifier: Modifier = Modifier
 ) {
     val layouts by viewModel.savedLayouts.collectAsState()
+    val device by viewModel.deviceRepository.currentDevice.collectAsState()
+    val connectionState by viewModel.deviceRepository.connectionState.collectAsState()
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(TvBackground)
-            .padding(28.dp)
+            .background(CompetitorAppBg)
     ) {
-        // Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+        // macOS Top Navigation Bar
+        TvTopBar(
+            title = "Layouts",
+            device = device,
+            connectionState = connectionState,
+            activeScreen = AppScreen.SAVED_LAYOUTS,
+            onNavigate = { screen -> viewModel.navigateTo(screen) },
+            onOpenSettings = { viewModel.navigateTo(AppScreen.SETTINGS) }
+        )
+
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            TvButton(
-                text = "Back",
-                onClick = { viewModel.navigateTo(AppScreen.HOME) },
-                style = TvButtonStyle.OUTLINE,
-                leadingIcon = {
-                    Icon(
-                        Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = Color.White
-                    )
-                },
-                testTag = "btn_layouts_back"
-            )
-            Spacer(modifier = Modifier.width(20.dp))
-            Column {
+            item {
                 Text(
-                    text = "SAVED MULTIVIEW PRESETS",
-                    color = Color.White,
-                    fontSize = 18.sp,
+                    text = "Layouts",
+                    fontSize = 32.sp,
                     fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.5.sp
+                    color = TvTextPrimary
                 )
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Quickly launch your favorite channel grid combinations",
-                    color = TvTextSecondary,
-                    fontSize = 12.sp
+                    text = "Choose a layout mode or resume your saved multiview configurations",
+                    fontSize = 13.sp,
+                    color = CompetitorTabInactive
                 )
+                Spacer(modifier = Modifier.height(14.dp))
             }
-        }
 
-        Spacer(modifier = Modifier.height(20.dp))
+            // Quick Layout Options (Screenshot 4)
+            item {
+                Text(
+                    text = "Start New Layout",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
 
-        if (layouts.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF141416))
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        Icons.Default.GridView,
-                        contentDescription = null,
-                        tint = TvTextSecondary,
-                        modifier = Modifier.size(44.dp)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    QuickLayoutRow(
+                        title = "Single View",
+                        subtitle = "1 channel",
+                        icon = {
+                            Box(
+                                modifier = Modifier
+                                    .size(width = 24.dp, height = 18.dp)
+                                    .border(1.5.dp, CompetitorLayoutBlue, RoundedCornerShape(2.dp))
+                            )
+                        },
+                        onClick = { viewModel.startMultiviewWithMode(MultiviewLayoutMode.SINGLE) }
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "No saved presets yet",
-                        color = Color.White,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold
+
+                    QuickLayoutRow(
+                        title = "Split View (2)",
+                        subtitle = "2 channels",
+                        icon = {
+                            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(width = 11.dp, height = 18.dp)
+                                        .border(1.5.dp, CompetitorLayoutBlue, RoundedCornerShape(2.dp))
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(width = 11.dp, height = 18.dp)
+                                        .border(1.5.dp, CompetitorLayoutBlue, RoundedCornerShape(2.dp))
+                                )
+                            }
+                        },
+                        onClick = { viewModel.startMultiviewWithMode(MultiviewLayoutMode.SIDE_BY_SIDE) }
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "While watching Multiview, press SELECT and choose 'Save Preset'.",
-                        color = TvTextSecondary,
-                        fontSize = 12.sp
+
+                    QuickLayoutRow(
+                        title = "Triple View (3)",
+                        subtitle = "3 channels",
+                        icon = {
+                            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(width = 13.dp, height = 18.dp)
+                                        .border(1.5.dp, CompetitorLayoutBlue, RoundedCornerShape(2.dp))
+                                )
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(width = 10.dp, height = 8.dp)
+                                            .border(1.5.dp, CompetitorLayoutBlue, RoundedCornerShape(2.dp))
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .size(width = 10.dp, height = 8.dp)
+                                            .border(1.5.dp, CompetitorLayoutBlue, RoundedCornerShape(2.dp))
+                                    )
+                                }
+                            }
+                        },
+                        onClick = { viewModel.startMultiviewWithMode(MultiviewLayoutMode.FOCUS_PRIMARY_BOTTOM_STRIP) }
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    TvButton(
-                        text = "Start Multiview Now",
-                        onClick = { viewModel.startMultiviewWithLastSession() },
-                        style = TvButtonStyle.PRIMARY
+
+                    QuickLayoutRow(
+                        title = "Quad View (4)",
+                        subtitle = "4 channels",
+                        icon = {
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(width = 11.dp, height = 8.dp)
+                                            .border(1.5.dp, CompetitorLayoutBlue, RoundedCornerShape(2.dp))
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .size(width = 11.dp, height = 8.dp)
+                                            .border(1.5.dp, CompetitorLayoutBlue, RoundedCornerShape(2.dp))
+                                    )
+                                }
+                                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(width = 11.dp, height = 8.dp)
+                                            .border(1.5.dp, CompetitorLayoutBlue, RoundedCornerShape(2.dp))
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .size(width = 11.dp, height = 8.dp)
+                                            .border(1.5.dp, CompetitorLayoutBlue, RoundedCornerShape(2.dp))
+                                    )
+                                }
+                            }
+                        },
+                        onClick = { viewModel.startMultiviewWithMode(MultiviewLayoutMode.QUAD_GRID) }
                     )
                 }
             }
-        } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(layouts) { layout ->
-                    SavedLayoutCardItem(
+
+            // Saved Custom Presets
+            if (layouts.isNotEmpty()) {
+                item {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "Saved Presets",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+
+                items(layouts, key = { it.id }) { layout ->
+                    CompetitorSavedPresetItem(
                         layout = layout,
                         onLaunch = { viewModel.launchSavedLayout(layout) },
                         onDelete = { viewModel.deleteSavedLayout(layout.id) }
@@ -152,97 +232,175 @@ fun SavedLayoutsScreen(
 }
 
 @Composable
-fun SavedLayoutCardItem(
+private fun QuickLayoutRow(
+    title: String,
+    subtitle: String,
+    icon: @Composable () -> Unit,
+    onClick: () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(CompetitorCardBg)
+            .border(
+                width = if (isFocused) 2.dp else 1.dp,
+                color = if (isFocused) CompetitorPurple else CompetitorCardBorder,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .focusable(interactionSource = interactionSource)
+            .padding(horizontal = 16.dp, vertical = 14.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF16181E))
+                        .border(1.dp, CompetitorCardBorder, RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    icon()
+                }
+
+                Spacer(modifier = Modifier.width(14.dp))
+
+                Column {
+                    Text(
+                        text = title,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = subtitle,
+                        fontSize = 12.sp,
+                        color = CompetitorTabInactive
+                    )
+                }
+            }
+
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = CompetitorTabInactive,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun CompetitorSavedPresetItem(
     layout: SavedLayout,
     onLaunch: () -> Unit,
     onDelete: () -> Unit
 ) {
-    TvFocusableCard(
-        onClick = onLaunch,
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(84.dp),
-        focusedContainerColor = Color(0xFF222226),
-        unfocusedContainerColor = Color(0xFF141416),
-        focusedBorderColor = Color.White,
-        unfocusedBorderColor = Color(0xFF2C2C2E),
-        testTag = "preset_card_${layout.id}"
-    ) { isFocused ->
+            .clip(RoundedCornerShape(12.dp))
+            .background(CompetitorCardBg)
+            .border(
+                width = if (isFocused) 2.dp else 1.dp,
+                color = if (isFocused) CompetitorPurple else CompetitorCardBorder,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onLaunch)
+            .focusable(interactionSource = interactionSource)
+            .padding(horizontal = 16.dp, vertical = 14.dp)
+            .testTag("preset_card_${layout.id}")
+    ) {
         Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 20.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                // Mode Badge
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (isFocused) Color.White else Color(0xFF222226))
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                    contentAlignment = Alignment.Center
+                        .background(CompetitorPurple)
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
                 ) {
                     Text(
-                        text = "${layout.mode.paneCount}-PANE",
-                        color = if (isFocused) Color.Black else Color.White,
+                        text = "${layout.mode.paneCount}P",
+                        color = Color.White,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
 
-                Spacer(modifier = Modifier.width(16.dp))
+                Spacer(modifier = Modifier.width(14.dp))
 
                 Column {
                     Text(
                         text = layout.name,
-                        color = Color.White,
                         fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White
                     )
-
-                    val channelsText = layout.channelLabels.filter { it.isNotBlank() }.joinToString("  •  ")
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = channelsText.ifBlank { "${layout.channelIds.size} channels assigned" },
-                        color = TvTextSecondary,
+                        text = layout.channelLabels.joinToString(" • "),
                         fontSize = 12.sp,
+                        color = CompetitorTabInactive,
                         maxLines = 1
                     )
                 }
             }
 
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TvButton(
-                    text = "Launch",
-                    onClick = onLaunch,
-                    style = if (isFocused) TvButtonStyle.PRIMARY else TvButtonStyle.SECONDARY,
-                    minHeight = 36.dp,
-                    leadingIcon = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(CompetitorPurple)
+                        .clickable(onClick = onLaunch)
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            Icons.Default.PlayArrow,
+                            imageVector = Icons.Default.PlayArrow,
                             contentDescription = null,
-                            tint = if (isFocused) Color.Black else Color.White
+                            tint = Color.White,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Launch",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
                         )
                     }
-                )
+                }
 
-                TvButton(
-                    text = "Delete",
+                Spacer(modifier = Modifier.width(8.dp))
+
+                IconButton(
                     onClick = onDelete,
-                    style = TvButtonStyle.OUTLINE,
-                    minHeight = 36.dp,
-                    leadingIcon = {
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = null,
-                            tint = TvError
-                        )
-                    }
-                )
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Delete",
+                        tint = CompetitorTabInactive,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
         }
     }

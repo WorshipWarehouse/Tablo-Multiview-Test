@@ -4,7 +4,14 @@ enum class MultiviewLayoutMode(val paneCount: Int, val label: String) {
     ONE_PANE(1, "1 Pane (Single)"),
     TWO_PANE(2, "2 Panes (Split)"),
     THREE_PANE(3, "3 Panes (Primary + 2)"),
-    FOUR_PANE(4, "4 Panes (Quad Grid)")
+    FOUR_PANE(4, "4 Panes (Quad Grid)");
+
+    companion object {
+        val SINGLE get() = ONE_PANE
+        val SIDE_BY_SIDE get() = TWO_PANE
+        val FOCUS_PRIMARY_BOTTOM_STRIP get() = THREE_PANE
+        val QUAD_GRID get() = FOUR_PANE
+    }
 }
 
 enum class StreamPlaybackState {
@@ -62,6 +69,7 @@ data class MultiviewUiState(
     val activeSourceCategory: String = "Tablo Live TV",
     val isPlaybackOverlayVisible: Boolean = false,
     val isMultiviewBuilderOpen: Boolean = false,
-    val isStatsOverlayOpen: Boolean = false
+    val isStatsOverlayOpen: Boolean = false,
+    val isSettingsModalOpen: Boolean = false
 )
 

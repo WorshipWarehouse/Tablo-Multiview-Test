@@ -106,7 +106,7 @@ class TabloPreferences(context: Context) {
         val model = prefs.getString(KEY_MODEL, "Tablo Gen 4") ?: "Tablo Gen 4"
         val version = prefs.getString(KEY_VERSION, "") ?: ""
         val timezone = prefs.getString(KEY_TIMEZONE, "") ?: ""
-        val tuners = prefs.getInt(KEY_TUNERS, 2)
+        val tuners = prefs.getInt(KEY_TUNERS, 4)
         val lastConnected = prefs.getLong(KEY_LAST_CONNECTED, 0L)
 
         return TabloDevice(

@@ -233,8 +233,8 @@ class TabloDeviceRepository(
                 name = existing?.name ?: "Tablo Gen 4",
                 host = cleanHost,
                 port = port,
-                modelName = existing?.modelName ?: "Tablo Gen 4",
-                tunerCount = 2,
+                modelName = existing?.modelName ?: "Tablo Gen 4 (4-Tuner)",
+                tunerCount = 4,
                 lastConnected = System.currentTimeMillis()
             )
             registerDevice(device)

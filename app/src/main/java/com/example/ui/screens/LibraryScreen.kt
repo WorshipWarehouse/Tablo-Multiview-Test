@@ -50,14 +50,12 @@ import com.example.model.DvrCategory
 import com.example.model.DvrRecording
 import com.example.ui.components.TvFocusableCard
 import com.example.ui.components.TvTopBar
-import com.example.ui.theme.TvBackground
-import com.example.ui.theme.TvBorderNormal
-import com.example.ui.theme.TvCyanPrimary
-import com.example.ui.theme.TvSurface
-import com.example.ui.theme.TvSurfaceElevated
+import com.example.ui.theme.CompetitorAppBg
+import com.example.ui.theme.CompetitorCardBg
+import com.example.ui.theme.CompetitorCardBorder
+import com.example.ui.theme.CompetitorPurple
+import com.example.ui.theme.CompetitorTabInactive
 import com.example.ui.theme.TvTextPrimary
-import com.example.ui.theme.TvTextSecondary
-import com.example.ui.theme.TvTextTertiary
 import com.example.ui.viewmodel.AppScreen
 import com.example.ui.viewmodel.TabloAppViewModel
 
@@ -69,6 +67,7 @@ fun LibraryScreen(
     val device by viewModel.deviceRepository.currentDevice.collectAsState()
     val connectionState by viewModel.deviceRepository.connectionState.collectAsState()
     val recordings by viewModel.dvrRecordings.collectAsState()
+    val allChannels by viewModel.channelRepository.channels.collectAsState()
     var selectedCategory by remember { mutableStateOf(DvrCategory.ALL) }
 
     val filteredRecordings = remember(recordings, selectedCategory) {
@@ -79,9 +78,9 @@ fun LibraryScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(TvBackground)
+            .background(CompetitorAppBg)
     ) {
-        // Top Bar with YouTube TV 3-Tab navigation
+        // macOS Top Navigation Bar
         TvTopBar(
             title = "Library",
             device = device,
@@ -94,31 +93,28 @@ fun LibraryScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             // Header Info: Cloud DVR status & storage
             item {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
                         Text(
-                            text = "LIBRARY (DVR)",
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Black,
-                            color = Color.White,
-                            letterSpacing = 0.5.sp
+                            text = "Library",
+                            fontSize = 32.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TvTextPrimary
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Your personal cloud DVR. Shows and sports you add appear here.",
+                            text = "Your recordings and saved programs appear here",
                             fontSize = 13.sp,
-                            color = TvTextSecondary
+                            color = CompetitorTabInactive
                         )
                     }
 
@@ -126,20 +122,20 @@ fun LibraryScreen(
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(Color(0xFF191D26))
-                            .border(1.dp, Color(0xFF2E3342), RoundedCornerShape(20.dp))
-                            .padding(horizontal = 14.dp, vertical = 7.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(CompetitorCardBg)
+                            .border(1.dp, CompetitorCardBorder, RoundedCornerShape(16.dp))
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Cloud,
                             contentDescription = null,
-                            tint = TvCyanPrimary,
-                            modifier = Modifier.size(16.dp)
+                            tint = CompetitorPurple,
+                            modifier = Modifier.size(15.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Unlimited Storage • Kept for 9 months",
+                            text = "Tablo Local DVR • 128 GB Available",
                             color = Color.White,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
@@ -148,11 +144,11 @@ fun LibraryScreen(
                 }
             }
 
-            // Category Filter Chips (YouTube TV: New to You, Shows, Movies, Sports, Events)
+            // Category Filter Chips
             item {
                 LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    contentPadding = PaddingValues(vertical = 4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(vertical = 2.dp)
                 ) {
                     items(DvrCategory.values()) { category ->
                         val isSelected = selectedCategory == category
@@ -165,27 +161,27 @@ fun LibraryScreen(
                                 .clip(RoundedCornerShape(16.dp))
                                 .background(
                                     when {
-                                        isSelected -> Color.White
-                                        isFocused -> Color(0xFF333338)
-                                        else -> Color(0xFF1E212A)
+                                        isSelected -> CompetitorPurple
+                                        isFocused -> Color(0xFF222532)
+                                        else -> CompetitorCardBg
                                     }
                                 )
                                 .border(
                                     width = 1.dp,
-                                    color = if (isFocused) Color.White else Color(0xFF2C303E),
+                                    color = if (isSelected) CompetitorPurple else CompetitorCardBorder,
                                     shape = RoundedCornerShape(16.dp)
                                 )
                                 .clickable(interactionSource = interactionSource, indication = null) {
                                     selectedCategory = category
                                 }
                                 .focusable(interactionSource = interactionSource)
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                                .padding(horizontal = 14.dp, vertical = 7.dp)
                         ) {
                             Text(
                                 text = category.displayName,
                                 fontSize = 13.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) Color.Black else Color.White
+                                color = if (isSelected) Color.White else CompetitorTabInactive
                             )
                         }
                     }
@@ -198,28 +194,29 @@ fun LibraryScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(200.dp)
-                            .background(TvSurface, RoundedCornerShape(12.dp)),
+                            .height(180.dp)
+                            .background(CompetitorCardBg, RoundedCornerShape(12.dp))
+                            .border(1.dp, CompetitorCardBorder, RoundedCornerShape(12.dp)),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(
                                 imageVector = Icons.Default.VideoLibrary,
                                 contentDescription = null,
-                                tint = TvTextTertiary,
-                                modifier = Modifier.size(48.dp)
+                                tint = CompetitorTabInactive,
+                                modifier = Modifier.size(40.dp)
                             )
                             Spacer(modifier = Modifier.height(10.dp))
                             Text(
                                 text = "No recordings in ${selectedCategory.displayName}",
                                 color = Color.White,
-                                fontSize = 16.sp,
+                                fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Press '+ Add to Library' while watching live TV to record upcoming airings.",
-                                color = TvTextSecondary,
+                                text = "Select any program in the Guide to record it directly to your Tablo",
+                                color = CompetitorTabInactive,
                                 fontSize = 12.sp
                             )
                         }
@@ -227,35 +224,29 @@ fun LibraryScreen(
                 }
             } else {
                 item {
-                    Text(
-                        text = "${selectedCategory.displayName.uppercase()} (${filteredRecordings.size})",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TvTextPrimary,
-                        letterSpacing = 0.5.sp
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         filteredRecordings.forEach { recording ->
-                            DvrRecordingRow(
+                            CompetitorRecordingCardItem(
                                 recording = recording,
                                 onPlay = {
-                                    viewModel.launchDvrRecording(recording)
+                                    val ch = allChannels.find { it.id == recording.channelId }
+                                    if (ch != null) {
+                                        viewModel.playChannelInMultiview(0, ch)
+                                    } else {
+                                        viewModel.startMultiviewWithMode(com.example.model.MultiviewLayoutMode.SINGLE)
+                                    }
                                 }
                             )
                         }
                     }
                 }
             }
-
-            item { Spacer(modifier = Modifier.height(40.dp)) }
         }
     }
 }
 
 @Composable
-fun DvrRecordingRow(
+private fun CompetitorRecordingCardItem(
     recording: DvrRecording,
     onPlay: () -> Unit
 ) {
@@ -264,111 +255,81 @@ fun DvrRecordingRow(
         modifier = Modifier
             .fillMaxWidth()
             .height(84.dp),
-        focusedContainerColor = Color(0xFF222530),
-        unfocusedContainerColor = Color(0xFF141720),
-        focusedBorderColor = Color.White,
-        unfocusedBorderColor = Color(0xFF242936),
-        testTag = "dvr_item_${recording.id}"
+        focusedContainerColor = Color(0xFF222532),
+        unfocusedContainerColor = CompetitorCardBg,
+        focusedBorderColor = CompetitorPurple,
+        unfocusedBorderColor = CompetitorCardBorder,
+        testTag = "dvr_recording_${recording.id}"
     ) { isFocused ->
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 20.dp, vertical = 12.dp),
+                .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
-            ) {
-                // Play Icon / Thumbnail
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                // Channel / Episode badge
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(46.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (isFocused) Color(0xFFFF0000) else Color(0xFF1E222D)),
+                        .background(Color(0xFF161820))
+                        .border(1.dp, CompetitorCardBorder, RoundedCornerShape(8.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.PlayArrow,
-                        contentDescription = "Play recording",
-                        tint = Color.White,
-                        modifier = Modifier.size(28.dp)
+                        contentDescription = null,
+                        tint = if (isFocused) CompetitorPurple else Color.White,
+                        modifier = Modifier.size(24.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.width(16.dp))
+                Spacer(modifier = Modifier.width(14.dp))
 
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = recording.title,
-                            color = Color.White,
                             fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        // In Library badge
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Color(0xFF1C2C24))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
+                        if (recording.isWatched) {
+                            Spacer(modifier = Modifier.width(6.dp))
                             Icon(
                                 imageVector = Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                tint = Color(0xFF4CAF50),
-                                modifier = Modifier.size(11.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "In Library",
-                                color = Color(0xFF81C784),
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold
+                                contentDescription = "Watched",
+                                tint = CompetitorTabInactive,
+                                modifier = Modifier.size(13.dp)
                             )
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(3.dp))
-
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "${recording.network} • ${recording.subtitle}",
-                        color = TvTextSecondary,
+                        text = "${recording.network} • ${recording.subtitle.ifBlank { "Live Broadcast" }} • ${recording.durationMinutes}m",
                         fontSize = 12.sp,
+                        color = CompetitorTabInactive,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
             }
 
-            // Right: Expiration and Duration info
-            Column(horizontalAlignment = Alignment.End) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (isFocused) CompetitorPurple else Color(0xFF1E212A))
+                    .border(1.dp, if (isFocused) CompetitorPurple else CompetitorCardBorder, RoundedCornerShape(12.dp))
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+            ) {
                 Text(
-                    text = "${recording.durationMinutes} min",
+                    text = "Play",
                     color = Color.White,
                     fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Bold
                 )
-                Spacer(modifier = Modifier.height(2.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Schedule,
-                        contentDescription = null,
-                        tint = TvTextTertiary,
-                        modifier = Modifier.size(12.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "Kept for ${recording.expiresMonthsRemaining} mo",
-                        color = TvTextTertiary,
-                        fontSize = 11.sp
-                    )
-                }
             }
         }
     }
