@@ -22,13 +22,17 @@ import com.example.model.TabloDevice
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import com.example.model.DvrCategory
+import com.example.model.DvrRecording
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 enum class AppScreen {
+    LIBRARY,
     HOME,
+    LIVE,
     REGISTRATION,
     MANUAL_IP,
     MULTIVIEW,
@@ -71,6 +75,101 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
 
     val savedLayouts: StateFlow<List<SavedLayout>> = savedLayoutRepository.layouts
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    // --- Cloud DVR Library (YouTube TV style) ---
+    private val _dvrRecordings = MutableStateFlow<List<DvrRecording>>(defaultDvrRecordings())
+    val dvrRecordings: StateFlow<List<DvrRecording>> = _dvrRecordings.asStateFlow()
+
+    fun addToLibrary(
+        title: String,
+        channel: TabloChannel?,
+        category: DvrCategory = DvrCategory.SHOWS,
+        subtitle: String = "Recorded Live"
+    ) {
+        val existing = _dvrRecordings.value.find { it.title.equals(title, ignoreCase = true) }
+        if (existing == null) {
+            val newRec = DvrRecording(
+                id = "dvr_${System.currentTimeMillis()}",
+                title = title,
+                subtitle = subtitle,
+                category = category,
+                network = channel?.network ?: "Tablo TV",
+                channelNumber = channel?.channelNumberFormatted ?: "LIVE",
+                durationMinutes = 60,
+                recordedDate = "Today",
+                expiresMonthsRemaining = 9,
+                channelId = channel?.id
+            )
+            _dvrRecordings.value = listOf(newRec) + _dvrRecordings.value
+        }
+    }
+
+    fun removeFromLibrary(recordingId: String) {
+        _dvrRecordings.value = _dvrRecordings.value.filterNot { it.id == recordingId }
+    }
+
+    fun launchChannel(channel: TabloChannel) {
+        launchMultiview(
+            mode = MultiviewLayoutMode.ONE_PANE,
+            channels = listOf(channel),
+            initialActivePane = 0
+        )
+    }
+
+    fun launchDvrRecording(recording: DvrRecording) {
+        val allChannels = channelRepository.channels.value
+        val channel = allChannels.find { it.id == recording.channelId }
+            ?: allChannels.firstOrNull()
+        if (channel != null) {
+            launchChannel(channel)
+        } else {
+            launchMultiview(MultiviewLayoutMode.ONE_PANE)
+        }
+    }
+
+    fun togglePlaybackOverlay(visible: Boolean? = null) {
+        val current = _multiviewState.value
+        val next = visible ?: !current.isPlaybackOverlayVisible
+        _multiviewState.value = current.copy(isPlaybackOverlayVisible = next)
+    }
+
+    fun openMultiviewBuilder() {
+        _multiviewState.value = _multiviewState.value.copy(
+            isMultiviewBuilderOpen = true,
+            isPlaybackOverlayVisible = false
+        )
+    }
+
+    fun closeMultiviewBuilder() {
+        _multiviewState.value = _multiviewState.value.copy(isMultiviewBuilderOpen = false)
+    }
+
+    fun openStatsOverlay() {
+        _multiviewState.value = _multiviewState.value.copy(
+            isStatsOverlayOpen = true,
+            isPlaybackOverlayVisible = false
+        )
+    }
+
+    fun closeStatsOverlay() {
+        _multiviewState.value = _multiviewState.value.copy(isStatsOverlayOpen = false)
+    }
+
+    fun launchCustomMultiview(selectedChannels: List<TabloChannel>) {
+        val count = selectedChannels.size.coerceIn(1, 4)
+        val mode = when (count) {
+            1 -> MultiviewLayoutMode.ONE_PANE
+            2 -> MultiviewLayoutMode.TWO_PANE
+            3 -> MultiviewLayoutMode.THREE_PANE
+            else -> MultiviewLayoutMode.FOUR_PANE
+        }
+        closeMultiviewBuilder()
+        launchMultiview(
+            mode = mode,
+            channels = selectedChannels,
+            initialActivePane = 0
+        )
+    }
 
     private val streamJobs = arrayOfNulls<Job>(4)
     private var keepaliveJob: Job? = null
@@ -741,3 +840,72 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
         stopAllStreams()
     }
 }
+
+private fun defaultDvrRecordings(): List<DvrRecording> = listOf(
+    DvrRecording(
+        id = "dvr_nfl_1",
+        title = "NFL Sunday Ticket: Chiefs at Ravens",
+        subtitle = "AFC Championship Rematch • High Drama Q4",
+        category = DvrCategory.SPORTS,
+        network = "CBS Sports",
+        channelNumber = "4.1",
+        durationMinutes = 180,
+        recordedDate = "Sunday",
+        expiresMonthsRemaining = 9
+    ),
+    DvrRecording(
+        id = "dvr_nfl_2",
+        title = "NFL: 49ers vs Rams",
+        subtitle = "NFC West Primetime Showdown",
+        category = DvrCategory.SPORTS,
+        network = "FOX Sports",
+        channelNumber = "11.1",
+        durationMinutes = 175,
+        recordedDate = "Sunday",
+        expiresMonthsRemaining = 9
+    ),
+    DvrRecording(
+        id = "dvr_show_1",
+        title = "60 Minutes",
+        subtitle = "Season 57 Ep 12 • Deep Dive Investigation",
+        category = DvrCategory.SHOWS,
+        network = "CBS",
+        channelNumber = "4.1",
+        durationMinutes = 60,
+        recordedDate = "2 days ago",
+        expiresMonthsRemaining = 9
+    ),
+    DvrRecording(
+        id = "dvr_show_2",
+        title = "Jeopardy! Tournament of Champions",
+        subtitle = "Finals Game 3 • High Stakes Trivia",
+        category = DvrCategory.NEW_TO_YOU,
+        network = "ABC",
+        channelNumber = "7.1",
+        durationMinutes = 30,
+        recordedDate = "Yesterday",
+        expiresMonthsRemaining = 9
+    ),
+    DvrRecording(
+        id = "dvr_movie_1",
+        title = "Top Gun: Maverick",
+        subtitle = "Action / Adventure • 4K Broadcast",
+        category = DvrCategory.MOVIES,
+        network = "Paramount",
+        channelNumber = "9.1",
+        durationMinutes = 130,
+        recordedDate = "Last week",
+        expiresMonthsRemaining = 8
+    ),
+    DvrRecording(
+        id = "dvr_event_1",
+        title = "2026 Primetime Emmy Awards",
+        subtitle = "Live Red Carpet & Ceremony",
+        category = DvrCategory.EVENTS,
+        network = "NBC",
+        channelNumber = "5.1",
+        durationMinutes = 210,
+        recordedDate = "3 days ago",
+        expiresMonthsRemaining = 9
+    )
+)

@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import com.example.model.MultiviewLayoutMode
 import com.example.ui.screens.ChannelGuideScreen
 import com.example.ui.screens.HomeScreen
+import com.example.ui.screens.LibraryScreen
 import com.example.ui.screens.ManualIpScreen
 import com.example.ui.screens.MultiviewScreen
 import com.example.ui.screens.RegistrationScreen
@@ -98,14 +99,22 @@ fun TabloAppRoot(
         when (currentScreen) {
             AppScreen.MULTIVIEW -> {
                 when {
+                    multiviewState.isMultiviewBuilderOpen -> viewModel.closeMultiviewBuilder()
+                    multiviewState.isStatsOverlayOpen -> viewModel.closeStatsOverlay()
+                    multiviewState.isPlaybackOverlayVisible -> viewModel.togglePlaybackOverlay(false)
                     multiviewState.isChannelPickerOpen -> viewModel.closeChannelPicker()
                     multiviewState.isActionMenuOpen -> viewModel.toggleActionMenu(false)
                     multiviewState.isSaveLayoutDialogOpen -> viewModel.closeSaveLayoutDialog()
-                    multiviewState.isFullScreenSingle && multiviewState.layoutMode != MultiviewLayoutMode.ONE_PANE -> viewModel.toggleFullScreenActivePane()
+                    multiviewState.isFullScreenSingle && multiviewState.previousModeBeforeFullScreen != MultiviewLayoutMode.ONE_PANE -> {
+                        // Return directly to 4-way Multiview layout on remote Back
+                        viewModel.toggleFullScreenActivePane()
+                    }
                     else -> viewModel.navigateTo(AppScreen.HOME)
                 }
             }
             AppScreen.MANUAL_IP -> viewModel.navigateTo(AppScreen.REGISTRATION)
+            AppScreen.LIBRARY,
+            AppScreen.LIVE,
             AppScreen.CHANNEL_GUIDE,
             AppScreen.SAVED_LAYOUTS,
             AppScreen.SETTINGS -> viewModel.navigateTo(AppScreen.HOME)
@@ -121,7 +130,9 @@ fun TabloAppRoot(
     }
 
     when (currentScreen) {
+        AppScreen.LIBRARY -> LibraryScreen(viewModel = viewModel)
         AppScreen.HOME -> HomeScreen(viewModel = viewModel)
+        AppScreen.LIVE -> ChannelGuideScreen(viewModel = viewModel)
         AppScreen.REGISTRATION -> RegistrationScreen(viewModel = viewModel)
         AppScreen.MANUAL_IP -> ManualIpScreen(viewModel = viewModel)
         AppScreen.MULTIVIEW -> MultiviewScreen(viewModel = viewModel)

@@ -204,14 +204,24 @@ fun MultiviewScreen(
                             true
                         }
                         Key.DirectionDown -> {
+                            viewModel.togglePlaybackOverlay(true)
                             pingHud()
                             true
                         }
                         Key.DirectionUp -> {
-                            if (showHud) {
+                            if (showHud || state.isPlaybackOverlayVisible) {
                                 showHud = false
+                                viewModel.togglePlaybackOverlay(false)
                                 true
                             } else false
+                        }
+                        Key.S -> {
+                            viewModel.openStatsOverlay()
+                            true
+                        }
+                        Key.B -> {
+                            viewModel.openMultiviewBuilder()
+                            true
                         }
                         Key.F -> {
                             viewModel.toggleFullScreenActivePane()
@@ -402,6 +412,43 @@ fun MultiviewScreen(
             SaveLayoutDialog(
                 onSave = { name -> viewModel.saveCurrentLayout(name) },
                 onDismiss = { viewModel.closeSaveLayoutDialog() }
+            )
+        }
+
+        // YouTube TV Playback Overlay (Triggered by remote DOWN key or screen click)
+        AnimatedVisibility(
+            visible = showHud || state.isPlaybackOverlayVisible,
+            enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
+            exit = fadeOut() + slideOutVertically(targetOffsetY = { it }),
+            modifier = Modifier.align(Alignment.BottomCenter)
+        ) {
+            YouTubeTvPlaybackOverlay(
+                state = state,
+                viewModel = viewModel,
+                activePane = state.panes.getOrElse(state.activePaneIndex) { state.panes[0] },
+                onDismiss = {
+                    showHud = false
+                    viewModel.togglePlaybackOverlay(false)
+                }
+            )
+        }
+
+        // YouTube TV Multiview Builder (Custom Selection modal)
+        if (state.isMultiviewBuilderOpen) {
+            YouTubeTvMultiviewBuilderModal(
+                allChannels = allChannels,
+                onDismiss = { viewModel.closeMultiviewBuilder() },
+                onLaunchMultiview = { selectedList ->
+                    viewModel.launchCustomMultiview(selectedList)
+                }
+            )
+        }
+
+        // YouTube TV Fantasy & Stats Overlay Modal
+        if (state.isStatsOverlayOpen) {
+            YouTubeTvStatsOverlayModal(
+                activePane = state.panes.getOrElse(state.activePaneIndex) { state.panes[0] },
+                onDismiss = { viewModel.closeStatsOverlay() }
             )
         }
     }
@@ -927,11 +974,11 @@ fun MultiviewVideoPane(
 ) {
     val isSinglePane = viewModel.multiviewState.value.layoutMode == MultiviewLayoutMode.ONE_PANE
 
-    // Spatial Focus Border: active viewport receives glowing electric cyan stroke
+    // Spatial Focus Border: YouTube TV white highlight box on active sub-window
     val borderModifier = if (isSinglePane) {
         Modifier
     } else if (isActive) {
-        Modifier.border(3.dp, TvCyanPrimary)
+        Modifier.border(3.5.dp, Color.White)
     } else {
         Modifier.border(1.dp, Color(0xFF252A36))
     }
@@ -1071,6 +1118,35 @@ fun MultiviewVideoPane(
                     .align(Alignment.TopEnd)
                     .padding(8.dp)
             )
+        }
+
+        // YouTube TV Signature Active Audio Badge on focused stream
+        if (isActive && !isSinglePane) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color.Black.copy(alpha = 0.85f))
+                    .border(1.dp, Color.White, RoundedCornerShape(6.dp))
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.VolumeUp,
+                        contentDescription = "Active Audio",
+                        tint = Color.White,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "(Active Audio)",
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
         }
 
         // Top Channel Info Pill (Clean YouTube TV pill style)
@@ -1861,4 +1937,779 @@ fun PipVideoView(
         },
         modifier = Modifier.fillMaxSize()
     )
+}
+
+// --- YouTube TV Playback Overlay ---
+
+@Composable
+fun YouTubeTvPlaybackOverlay(
+    state: com.example.model.MultiviewUiState,
+    viewModel: TabloAppViewModel,
+    activePane: PaneState,
+    onDismiss: () -> Unit
+) {
+    val isSinglePane = state.layoutMode == MultiviewLayoutMode.ONE_PANE || state.isFullScreenSingle
+    var libraryAddedToast by remember { mutableStateOf(false) }
+
+    Surface(
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+        color = Color(0xF70C0E14),
+        border = BorderStroke(1.dp, Color(0xFF282F3E)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("youtube_tv_playback_overlay")
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 28.dp, vertical = 18.dp)
+        ) {
+            // Live broadcast info & scrub bar
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // LIVE Red Badge
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFF2B1010))
+                            .border(1.dp, Color(0xFFFF0000).copy(alpha = 0.6f), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFFF0000))
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = "LIVE",
+                                color = Color(0xFFFF4444),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Text(
+                        text = activePane.channel?.channelNumberFormatted ?: "CH 4.1",
+                        color = TvAmberAccent,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Text(
+                        text = activePane.channel?.network?.ifBlank { activePane.channel?.callSign } ?: "Live Stream",
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Text(
+                        text = "• Live Programming",
+                        color = TvTextSecondary,
+                        fontSize = 13.sp
+                    )
+                }
+
+                // Quick Close or Back hint
+                Text(
+                    text = "Press DOWN or BACK to close",
+                    color = TvTextTertiary,
+                    fontSize = 11.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Live progress/buffer line
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color(0xFF242834))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.92f)
+                        .height(3.dp)
+                        .background(Color(0xFFFF0000))
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // YouTube TV Action Control Bar
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Multiview Builder Button
+                TvButton(
+                    text = "Build Multiview",
+                    onClick = {
+                        onDismiss()
+                        viewModel.openMultiviewBuilder()
+                    },
+                    style = TvButtonStyle.PRIMARY,
+                    leadingIcon = {
+                        Icon(Icons.Default.GridView, contentDescription = null, tint = Color.Black)
+                    },
+                    testTag = "btn_overlay_multiview"
+                )
+
+                // Stats & Fantasy Button
+                TvButton(
+                    text = "Stats & Fantasy",
+                    onClick = {
+                        onDismiss()
+                        viewModel.openStatsOverlay()
+                    },
+                    style = TvButtonStyle.OUTLINE,
+                    leadingIcon = {
+                        Icon(Icons.Default.Info, contentDescription = null, tint = Color.White)
+                    },
+                    testTag = "btn_overlay_stats"
+                )
+
+                // Add to Library (Cloud DVR)
+                TvButton(
+                    text = if (libraryAddedToast) "Added to Library" else "+ Add to Library",
+                    onClick = {
+                        libraryAddedToast = true
+                        activePane.channel?.let { ch ->
+                            viewModel.addToLibrary(
+                                title = ch.network.ifBlank { ch.callSign } + " Broadcast",
+                                channel = ch,
+                                category = com.example.model.DvrCategory.SPORTS,
+                                subtitle = "Live Cloud Recording"
+                            )
+                        }
+                    },
+                    style = if (libraryAddedToast) TvButtonStyle.SECONDARY else TvButtonStyle.OUTLINE,
+                    leadingIcon = {
+                        Icon(
+                            if (libraryAddedToast) Icons.Default.Check else Icons.Default.Add,
+                            contentDescription = null,
+                            tint = Color.White
+                        )
+                    },
+                    testTag = "btn_overlay_add_library"
+                )
+
+                // Quality Selector
+                TvButton(
+                    text = "Quality: ${activePane.quality.label}",
+                    onClick = {
+                        viewModel.openQualityMenu(activePane.paneIndex)
+                    },
+                    style = TvButtonStyle.OUTLINE,
+                    leadingIcon = {
+                        Icon(Icons.Default.Speed, contentDescription = null, tint = Color.White)
+                    },
+                    testTag = "btn_overlay_quality"
+                )
+
+                // Audio focus toggle
+                if (!isSinglePane) {
+                    TvButton(
+                        text = "Audio: Pane ${activePane.paneIndex + 1}",
+                        onClick = {
+                            viewModel.togglePaneAudio(activePane.paneIndex)
+                        },
+                        style = TvButtonStyle.OUTLINE,
+                        leadingIcon = {
+                            Icon(Icons.Default.VolumeUp, contentDescription = null, tint = Color.White)
+                        },
+                        testTag = "btn_overlay_audio"
+                    )
+                }
+
+                // Fullscreen toggle
+                TvButton(
+                    text = if (isSinglePane && state.layoutMode != MultiviewLayoutMode.ONE_PANE) "Back to Grid" else "Fullscreen",
+                    onClick = {
+                        viewModel.toggleFullScreenActivePane()
+                    },
+                    style = TvButtonStyle.OUTLINE,
+                    leadingIcon = {
+                        Icon(
+                            if (isSinglePane) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                            contentDescription = null,
+                            tint = Color.White
+                        )
+                    },
+                    testTag = "btn_overlay_fullscreen"
+                )
+            }
+        }
+    }
+}
+
+// --- YouTube TV Multiview Builder Modal ---
+
+@Composable
+fun YouTubeTvMultiviewBuilderModal(
+    allChannels: List<com.example.model.TabloChannel>,
+    onDismiss: () -> Unit,
+    onLaunchMultiview: (List<com.example.model.TabloChannel>) -> Unit
+) {
+    var selectedCategory by remember { mutableStateOf("Sports & NFL") }
+    var selectedChannels by remember {
+        mutableStateOf(allChannels.take(4).toSet())
+    }
+
+    val categories = listOf("Sports & NFL", "News", "Shows & Movies", "Local Affiliates")
+
+    val displayedChannels = remember(allChannels, selectedCategory) {
+        when (selectedCategory) {
+            "Sports & NFL" -> allChannels.filter { ch ->
+                val text = (ch.network + " " + ch.callSign).lowercase()
+                text.contains("cbs") || text.contains("fox") || text.contains("nbc") || text.contains("abc") || text.contains("sport")
+            }.ifEmpty { allChannels }
+            "News" -> allChannels.filter { ch ->
+                val text = (ch.network + " " + ch.callSign).lowercase()
+                text.contains("news") || text.contains("pbs") || text.contains("weather")
+            }.ifEmpty { allChannels }
+            "Shows & Movies" -> allChannels.filter { ch ->
+                val text = (ch.network + " " + ch.callSign).lowercase()
+                text.contains("movie") || text.contains("paramount") || text.contains("cw")
+            }.ifEmpty { allChannels }
+            "Local Affiliates" -> allChannels.filter { ch ->
+                ch.callSign.isNotBlank()
+            }.ifEmpty { allChannels }
+            else -> allChannels
+        }
+    }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxSize()
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
+        color = Color.Black.copy(alpha = 0.88f)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(32.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color(0xFF141720),
+                border = BorderStroke(1.dp, Color(0xFF2C3244)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 680.dp)
+                    .testTag("multiview_builder_modal")
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(28.dp)
+                ) {
+                    // Header
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.GridView,
+                                    contentDescription = null,
+                                    tint = TvCyanPrimary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "BUILD A MULTIVIEW",
+                                    color = Color.White,
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = 0.5.sp
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Select up to 4 streams. Combine out-of-market NFL games with local CBS & FOX channels.",
+                                color = TvTextSecondary,
+                                fontSize = 13.sp
+                            )
+                        }
+
+                        // Close button
+                        TvButton(
+                            text = "Close",
+                            onClick = onDismiss,
+                            style = TvButtonStyle.OUTLINE,
+                            leadingIcon = {
+                                Icon(Icons.Default.Close, contentDescription = null, tint = Color.White)
+                            }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    // Category Chips
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(categories) { category ->
+                            val isSelected = selectedCategory == category
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(if (isSelected) Color.White else Color(0xFF1F2432))
+                                    .border(1.dp, if (isSelected) Color.White else Color(0xFF2D3344), RoundedCornerShape(16.dp))
+                                    .clickable { selectedCategory = category }
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                Text(
+                                    text = category,
+                                    color = if (isSelected) Color.Black else Color.White,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    // Channel List Grid
+                    LazyColumn(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(displayedChannels) { channel ->
+                            val isSelected = selectedChannels.contains(channel)
+                            val canSelect = isSelected || selectedChannels.size < 4
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(if (isSelected) Color(0xFF252E42) else Color(0xFF171B24))
+                                    .border(
+                                        1.dp,
+                                        if (isSelected) TvCyanPrimary else Color(0xFF252A38),
+                                        RoundedCornerShape(10.dp)
+                                    )
+                                    .clickable(enabled = canSelect) {
+                                        selectedChannels = if (isSelected) {
+                                            selectedChannels - channel
+                                        } else {
+                                            if (selectedChannels.size < 4) selectedChannels + channel else selectedChannels
+                                        }
+                                    }
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .clip(CircleShape)
+                                            .background(if (isSelected) TvCyanPrimary else Color(0xFF2B3140)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (isSelected) {
+                                            Icon(
+                                                Icons.Default.Check,
+                                                contentDescription = "Selected",
+                                                tint = Color.Black,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.width(14.dp))
+
+                                    Column {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = channel.channelNumberFormatted,
+                                                color = TvAmberAccent,
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = channel.network.ifBlank { channel.callSign },
+                                                color = Color.White,
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        Text(
+                                            text = getChannelAiringDesc(channel),
+                                            color = TvTextSecondary,
+                                            fontSize = 12.sp
+                                        )
+                                    }
+                                }
+
+                                if (isSelected) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(Color(0xFF1B2332))
+                                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = "Pane ${selectedChannels.indexOf(channel) + 1}",
+                                            color = TvCyanPrimary,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Footer with Selection Counter & Launch Multiview
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Selected: ${selectedChannels.size} / 4 Streams",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = when (selectedChannels.size) {
+                                    1 -> "Layout: Fullscreen Single Stream"
+                                    2 -> "Layout: 2-Game Split Screen"
+                                    3 -> "Layout: 3-Game Triple Layout"
+                                    4 -> "Layout: 4-Game Quad Multiview"
+                                    else -> "Select at least 1 stream to begin"
+                                },
+                                color = TvTextSecondary,
+                                fontSize = 12.sp
+                            )
+                        }
+
+                        TvButton(
+                            text = "Start Multiview",
+                            onClick = {
+                                if (selectedChannels.isNotEmpty()) {
+                                    onLaunchMultiview(selectedChannels.toList())
+                                }
+                            },
+                            style = TvButtonStyle.PRIMARY,
+                            enabled = selectedChannels.isNotEmpty(),
+                            leadingIcon = {
+                                Icon(Icons.Default.GridView, contentDescription = null, tint = Color.Black)
+                            },
+                            testTag = "btn_start_multiview"
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// --- YouTube TV Stats & Fantasy Overlay Modal ---
+
+@Composable
+fun YouTubeTvStatsOverlayModal(
+    activePane: PaneState,
+    onDismiss: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxSize()
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                onDismiss()
+            },
+        color = Color.Black.copy(alpha = 0.88f)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(28.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = Color(0xFF12151D),
+                border = BorderStroke(1.dp, Color(0xFF282F40)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 620.dp)
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
+                    .testTag("sports_stats_overlay_modal")
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp)
+                ) {
+                    // Header
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFFF0000))
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "NFL & SPORTS STATS OVERLAY",
+                                    color = Color.White,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = 0.5.sp
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "• Live Contextual Data",
+                                    color = TvCyanPrimary,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Text(
+                                text = "Real-time stats, league scoreboard, and NFL Fantasy score tracking",
+                                color = TvTextSecondary,
+                                fontSize = 12.sp
+                            )
+                        }
+
+                        TvButton(
+                            text = "Back to Game",
+                            onClick = onDismiss,
+                            style = TvButtonStyle.OUTLINE,
+                            leadingIcon = {
+                                Icon(Icons.Default.Close, contentDescription = null, tint = Color.White)
+                            }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // 3 Columns: Live Scores | Team Stats | NFL Fantasy Tracker
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        // Column 1: Live Scores
+                        StatsCardColumn(
+                            title = "LEAGUE SCOREBOARD",
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            ScoreItem("BAL", 24, "KC", 27, "4th Qtr • 2:15", isLive = true)
+                            ScoreItem("SF", 21, "LAR", 14, "3rd Qtr • 8:40", isLive = true)
+                            ScoreItem("PHI", 31, "DAL", 28, "Final", isLive = false)
+                            ScoreItem("DET", 24, "GB", 20, "4th Qtr • 1:02", isLive = true)
+                            ScoreItem("CIN", 17, "PIT", 21, "Final", isLive = false)
+                        }
+
+                        // Column 2: Team & Player Stats
+                        StatsCardColumn(
+                            title = "GAME STATS & LEADERS",
+                            modifier = Modifier.weight(1.2f)
+                        ) {
+                            Text(
+                                text = "Passing Leaders",
+                                color = TvAmberAccent,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            StatRow("P. Mahomes (KC)", "23/32, 291 YDS, 2 TD")
+                            StatRow("L. Jackson (BAL)", "19/27, 248 YDS, 1 TD")
+
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = "Rushing Leaders",
+                                color = TvAmberAccent,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            StatRow("I. Pacheco (KC)", "16 CAR, 84 YDS, 1 TD")
+                            StatRow("D. Henry (BAL)", "14 CAR, 78 YDS, 1 TD")
+
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = "Receiving Leaders",
+                                color = TvAmberAccent,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            StatRow("T. Kelce (KC)", "8 REC, 102 YDS, 1 TD")
+                            StatRow("Z. Flowers (BAL)", "6 REC, 81 YDS")
+                        }
+
+                        // Column 3: NFL Fantasy Tracker
+                        StatsCardColumn(
+                            title = "NFL FANTASY TRACKER",
+                            modifier = Modifier.weight(1.1f)
+                        ) {
+                            FantasyPlayerRow("Patrick Mahomes", "QB • KC", "21.6 PTS", "Proj: 20.4", true)
+                            FantasyPlayerRow("Travis Kelce", "TE • KC", "18.2 PTS", "Proj: 14.8", true)
+                            FantasyPlayerRow("Lamar Jackson", "QB • BAL", "19.3 PTS", "Proj: 21.0", true)
+                            FantasyPlayerRow("Derrick Henry", "RB • BAL", "16.4 PTS", "Proj: 15.2", true)
+                            FantasyPlayerRow("Harrison Butker", "K • KC", "9.0 PTS", "Proj: 7.8", false)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "Tip: Press DOWN on your remote while watching any game to access this overlay.",
+                        color = TvTextTertiary,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatsCardColumn(
+    title: String,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .fillMaxHeight()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFF181C26))
+            .border(1.dp, Color(0xFF262C3D), RoundedCornerShape(12.dp))
+            .padding(14.dp)
+    ) {
+        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+            Text(
+                text = title,
+                color = Color.White,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.5.sp
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            content()
+        }
+    }
+}
+
+@Composable
+private fun ScoreItem(
+    team1: String, score1: Int,
+    team2: String, score2: Int,
+    status: String,
+    isLive: Boolean
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 5.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(Color(0xFF1F2432))
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column {
+            Text(
+                text = "$team1 $score1  -  $team2 $score2",
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = status,
+                color = if (isLive) Color(0xFFFF4444) else TvTextSecondary,
+                fontSize = 10.sp,
+                fontWeight = if (isLive) FontWeight.Bold else FontWeight.Normal
+            )
+        }
+    }
+}
+
+@Composable
+private fun StatRow(player: String, stats: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(player, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+        Text(stats, color = TvTextSecondary, fontSize = 11.sp)
+    }
+}
+
+@Composable
+private fun FantasyPlayerRow(name: String, pos: String, pts: String, proj: String, isBeatingProj: Boolean) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(Color(0xFF1F2432))
+            .padding(horizontal = 8.dp, vertical = 5.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column {
+            Text(name, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text(pos, color = TvTextSecondary, fontSize = 9.sp)
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            Text(pts, color = TvCyanPrimary, fontSize = 11.sp, fontWeight = FontWeight.Black)
+            Text(proj, color = if (isBeatingProj) Color(0xFF00E676) else TvTextTertiary, fontSize = 9.sp)
+        }
+    }
+}
+
+private fun getChannelAiringDesc(channel: com.example.model.TabloChannel): String {
+    val net = channel.network.lowercase()
+    return when {
+        net.contains("cbs") -> "NFL Sunday Ticket: Live Broadcast"
+        net.contains("fox") -> "NFL on FOX: Local Affiliate Game"
+        net.contains("nbc") -> "Sunday Night Football Live"
+        net.contains("abc") -> "College Football Live"
+        net.contains("news") -> "Live 24/7 News Desk"
+        else -> "Live Over-The-Air Broadcast"
+    }
 }

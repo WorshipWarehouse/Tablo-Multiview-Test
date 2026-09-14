@@ -59,6 +59,9 @@ data class MultiviewUiState(
     val previousModeBeforeFullScreen: MultiviewLayoutMode = MultiviewLayoutMode.FOUR_PANE,
     val isInPipMode: Boolean = false,
     val showQualityMenuForPane: Int? = null,
-    val activeSourceCategory: String = "Tablo Live TV"
+    val activeSourceCategory: String = "Tablo Live TV",
+    val isPlaybackOverlayVisible: Boolean = false,
+    val isMultiviewBuilderOpen: Boolean = false,
+    val isStatsOverlayOpen: Boolean = false
 )
 
