@@ -1,6 +1,6 @@
 {
   "name": "Multiview",
-  "description": "Multi-stream media player and multiview live layout for Android TV, mobile, and tablet.",
+  "description": "Multi-stream media player and multiview live layout for Tablo DVR, broadcast TV, and FAST channels in React.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
