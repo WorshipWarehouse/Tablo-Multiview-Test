@@ -15,6 +15,23 @@ enum class StreamPlaybackState {
     ERROR
 }
 
+enum class StreamQuality(val label: String, val maxResWidth: Int, val maxResHeight: Int) {
+    AUTO("Auto (Adaptive)", 1920, 1080),
+    HD_1080P("1080p Full HD", 1920, 1080),
+    HD_720P("720p HD (Low Buffer)", 1280, 720),
+    SD_480P("480p SD (High Stability)", 854, 480)
+}
+
+data class StreamDiagnostics(
+    val bitrateKbps: Int = 0,
+    val resolution: String = "--",
+    val framerate: Float = 0f,
+    val decoder: String = "Hardware (MediaCodec)",
+    val isHardwareAccelerated: Boolean = true,
+    val droppedFrames: Int = 0,
+    val bufferHealthMs: Long = 0L
+)
+
 data class PaneState(
     val paneIndex: Int,
     val channel: TabloChannel? = null,
@@ -23,7 +40,11 @@ data class PaneState(
     val errorMessage: String? = null,
     val isMuted: Boolean = false,
     val streamUrl: String? = null,
-    val streamToken: String? = null
+    val streamToken: String? = null,
+    val quality: StreamQuality = StreamQuality.AUTO,
+    val showDiagnostics: Boolean = false,
+    val diagnostics: StreamDiagnostics = StreamDiagnostics(),
+    val isPrimaryFocus: Boolean = false
 )
 
 data class MultiviewUiState(
@@ -35,5 +56,9 @@ data class MultiviewUiState(
     val isReorderMode: Boolean = false,
     val isSaveLayoutDialogOpen: Boolean = false,
     val isFullScreenSingle: Boolean = false,
-    val previousModeBeforeFullScreen: MultiviewLayoutMode = MultiviewLayoutMode.FOUR_PANE
+    val previousModeBeforeFullScreen: MultiviewLayoutMode = MultiviewLayoutMode.FOUR_PANE,
+    val isInPipMode: Boolean = false,
+    val showQualityMenuForPane: Int? = null,
+    val activeSourceCategory: String = "Tablo Live TV"
 )
+

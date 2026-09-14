@@ -1,6 +1,6 @@
 {
-  "name": "Tablo Multiview",
-  "description": "Native Fire TV multiview app connecting directly to Tablo Gen 4 DVR over local network with multi-pane live TV playback.",
+  "name": "Multiview",
+  "description": "Multi-stream media player and multiview live layout for Android TV, mobile, and tablet.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

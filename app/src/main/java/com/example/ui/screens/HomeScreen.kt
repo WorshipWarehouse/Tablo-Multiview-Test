@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,19 +32,25 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.MultiviewLayoutMode
+import com.example.model.TabloChannel
 import com.example.model.TabloConnectionState
 import com.example.ui.components.TvButton
 import com.example.ui.components.TvButtonStyle
@@ -71,6 +78,23 @@ fun HomeScreen(
     val connectionState by viewModel.deviceRepository.connectionState.collectAsState()
     val errorMessage by viewModel.deviceRepository.errorMessage.collectAsState()
     val channels by viewModel.channelRepository.channels.collectAsState()
+    val savedLayouts by viewModel.savedLayouts.collectAsState()
+    var selectedCategory by remember { mutableStateOf("All Channels") }
+
+    val filteredChannels = remember(channels, selectedCategory) {
+        when (selectedCategory) {
+            "Sports & Primetime" -> channels.filter { ch ->
+                val text = (ch.network + " " + ch.callSign).lowercase()
+                text.contains("cbs") || text.contains("nbc") || text.contains("fox") ||
+                text.contains("abc") || text.contains("sport") || text.contains("espn")
+            }.ifEmpty { channels }
+            "News & Info" -> channels.filter { ch ->
+                val text = (ch.network + " " + ch.callSign).lowercase()
+                text.contains("news") || text.contains("pbs") || text.contains("weather")
+            }.ifEmpty { channels }
+            else -> channels
+        }
+    }
 
     Column(
         modifier = modifier
@@ -487,9 +511,103 @@ fun HomeScreen(
                 )
             }
 
+            // Saved Presets Rail (if any exist)
+            if (savedLayouts.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(20.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "SAVED MULTIVIEW PRESETS",
+                        color = TvTextSecondary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
+                    )
+                    Text(
+                        text = "${savedLayouts.size} Presets",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(vertical = 4.dp)
+                ) {
+                    items(savedLayouts) { layout ->
+                        TvFocusableCard(
+                            onClick = { viewModel.launchSavedLayout(layout) },
+                            modifier = Modifier
+                                .width(200.dp)
+                                .height(94.dp),
+                            focusedContainerColor = Color(0xFF222228),
+                            unfocusedContainerColor = Color(0xFF141418),
+                            focusedBorderColor = TvCyanPrimary,
+                            unfocusedBorderColor = Color(0xFF2C2C32),
+                            testTag = "preset_card_${layout.id}"
+                        ) { isFocused ->
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(12.dp),
+                                verticalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = layout.name,
+                                        color = if (isFocused) TvCyanPrimary else Color.White,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(Color(0xFF2C2C32))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = "${layout.mode.paneCount} Screens",
+                                            color = Color(0xFFA1A1AA),
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+
+                                Text(
+                                    text = layout.channelLabels.joinToString(" • ").ifBlank { "Multi-stream Grid" },
+                                    color = TvTextSecondary,
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+
+                                Text(
+                                    text = "Launch Preset  ▶",
+                                    color = if (isFocused) Color.White else Color(0xFF8E8E93),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Channels Strip Header
+            // Channels Strip Header with Category Filters
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -502,18 +620,33 @@ fun HomeScreen(
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.5.sp
                 )
-                Text(
-                    text = "${channels.size} Detected",
-                    color = Color.White,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium
-                )
+
+                // Category Filter Pills
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for (cat in listOf("All Channels", "Sports & Primetime", "News & Info")) {
+                        val isCatSelected = selectedCategory == cat
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isCatSelected) TvCyanPrimary else Color(0xFF222226),
+                            modifier = Modifier
+                                .clickable { selectedCategory = cat }
+                        ) {
+                            Text(
+                                text = cat,
+                                color = if (isCatSelected) Color.Black else Color(0xFFD1D1D6),
+                                fontSize = 11.sp,
+                                fontWeight = if (isCatSelected) FontWeight.Bold else FontWeight.Medium,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
             // Channels Horizontal Rail
-            if (channels.isEmpty()) {
+            if (filteredChannels.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -524,7 +657,7 @@ fun HomeScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "No channels loaded yet. Press Channel Guide or Settings to refresh.",
+                        text = "No channels in this category.",
                         color = TvTextSecondary,
                         fontSize = 13.sp
                     )
@@ -534,7 +667,7 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(vertical = 4.dp)
                 ) {
-                    items(channels) { channel ->
+                    items(filteredChannels) { channel ->
                         TvFocusableCard(
                             onClick = {
                                 viewModel.launchMultiview(
@@ -547,7 +680,7 @@ fun HomeScreen(
                                 .height(90.dp),
                             focusedContainerColor = Color(0xFF222226),
                             unfocusedContainerColor = Color(0xFF141416),
-                            focusedBorderColor = Color.White,
+                            focusedBorderColor = TvCyanPrimary,
                             unfocusedBorderColor = Color(0xFF2C2C2E),
                             testTag = "channel_card_${channel.id}"
                         ) { isFocused ->
@@ -582,7 +715,8 @@ fun HomeScreen(
                                     color = Color.White,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Medium,
-                                    maxLines = 1
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }

@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Tablo Multiview"
+rootProject.name = "Multiview"
 
 include(":app")

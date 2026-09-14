@@ -51,9 +51,17 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
     val isAuthenticating: StateFlow<Boolean> = deviceRepository.isAuthenticating
     fun getSavedAuthEmail(): String? = preferences.getAuthEmail()
 
-    val playerManager = MultiviewPlayerManager(application) { paneIndex, state, error ->
-        updatePanePlaybackState(paneIndex, state, error)
-    }
+    var onTriggerPip: (() -> Unit)? = null
+
+    val playerManager = MultiviewPlayerManager(
+        context = application,
+        onPaneStateChange = { paneIndex, state, error ->
+            updatePanePlaybackState(paneIndex, state, error)
+        },
+        onPaneDiagnostics = { paneIndex, diagnostics ->
+            updatePaneDiagnostics(paneIndex, diagnostics)
+        }
+    )
 
     private val _currentScreen = MutableStateFlow(AppScreen.HOME)
     val currentScreen: StateFlow<AppScreen> = _currentScreen.asStateFlow()
@@ -462,6 +470,67 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
         _multiviewState.value = _multiviewState.value.copy(panes = updated)
     }
 
+    private fun updatePaneDiagnostics(paneIndex: Int, diagnostics: com.example.model.StreamDiagnostics) {
+        val panes = _multiviewState.value.panes
+        if (paneIndex in panes.indices) {
+            val updated = panes.map { pane ->
+                if (pane.paneIndex == paneIndex) {
+                    pane.copy(diagnostics = diagnostics)
+                } else pane
+            }
+            _multiviewState.value = _multiviewState.value.copy(panes = updated)
+        }
+    }
+
+    fun setPaneQuality(paneIndex: Int, quality: com.example.model.StreamQuality) {
+        playerManager.setPaneQuality(paneIndex, quality)
+        val updated = _multiviewState.value.panes.map { pane ->
+            if (pane.paneIndex == paneIndex) {
+                pane.copy(quality = quality)
+            } else pane
+        }
+        _multiviewState.value = _multiviewState.value.copy(
+            panes = updated,
+            showQualityMenuForPane = null
+        )
+    }
+
+    fun togglePaneDiagnostics(paneIndex: Int) {
+        val updated = _multiviewState.value.panes.map { pane ->
+            if (pane.paneIndex == paneIndex) {
+                pane.copy(showDiagnostics = !pane.showDiagnostics)
+            } else pane
+        }
+        _multiviewState.value = _multiviewState.value.copy(panes = updated)
+    }
+
+    fun togglePaneAudio(paneIndex: Int) {
+        playerManager.togglePaneAudio(paneIndex)
+        val isMuted = !playerManager.isPaneAudioActive(paneIndex)
+        val updated = _multiviewState.value.panes.map { pane ->
+            if (pane.paneIndex == paneIndex) {
+                pane.copy(isMuted = isMuted)
+            } else pane
+        }
+        _multiviewState.value = _multiviewState.value.copy(panes = updated)
+    }
+
+    fun openQualityMenu(paneIndex: Int?) {
+        _multiviewState.value = _multiviewState.value.copy(showQualityMenuForPane = paneIndex)
+    }
+
+    fun setPipMode(inPip: Boolean) {
+        _multiviewState.value = _multiviewState.value.copy(isInPipMode = inPip)
+    }
+
+    fun requestPictureInPicture() {
+        onTriggerPip?.invoke()
+    }
+
+    fun setSourceCategory(category: String) {
+        _multiviewState.value = _multiviewState.value.copy(activeSourceCategory = category)
+    }
+
     fun toggleActionMenu(open: Boolean? = null) {
         val newState = open ?: !_multiviewState.value.isActionMenuOpen
         _multiviewState.value = _multiviewState.value.copy(isActionMenuOpen = newState)
@@ -484,6 +553,9 @@ class TabloAppViewModel(application: Application) : AndroidViewModel(application
             isActionMenuOpen = false
         )
     }
+
+    fun startReorderMode() = setReorderMode(true)
+    fun cancelReorderMode() = setReorderMode(false)
 
     fun openSaveLayoutDialog() {
         _multiviewState.value = _multiviewState.value.copy(
